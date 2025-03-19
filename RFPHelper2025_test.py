@@ -19,8 +19,8 @@ if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
     st.stop()  # Stop execution if API key is missing
 
-# ✅ Correct OpenAI client initialization
-openai.api_key = openai_api_key  # ✅ Correct way
+# ✅ Set OpenAI API key correctly
+openai.api_key = openai_api_key
 
 # Set background image
 def set_background(image_url):
@@ -89,6 +89,14 @@ optional_question = st.text_input("Extra/Optional: You can ask a unique question
 def clean_answer(answer):
     return re.sub(r'(Overall,.*|In conclusion.*|Conclusion:.*)', '', answer, flags=re.IGNORECASE | re.DOTALL).strip()
 
+# ✅ Use `st.session_state` to preserve state
+if "answer" not in st.session_state:
+    st.session_state.answer = ""
+if "show_correction" not in st.session_state:
+    st.session_state.show_correction = False
+if "user_feedback" not in st.session_state:
+    st.session_state.user_feedback = None
+
 # **Submit Button Logic**
 if st.button("Submit"):
     if optional_question:
@@ -109,79 +117,42 @@ if st.button("Submit"):
             temperature=0.1
         )
 
-        answer = clean_answer(response.choices[0].message.content.strip())
+        st.session_state.answer = clean_answer(response.choices[0].message["content"].strip())
 
-        st.markdown(f"### Your Question: {optional_question}")
-        st.write(answer)
+# Display answer if available
+if st.session_state.answer:
+    st.markdown(f"### Your Question: {optional_question}")
+    st.write(st.session_state.answer)
 
-        # **Feedback Mechanism**
-        feedback = st.radio("Is this answer correct?", ["Yes", "No"], key="feedback")
+    # **Feedback Mechanism**
+    feedback = st.radio("Is this answer correct?", ["Yes", "No"], key="feedback")
 
-        if feedback == "No":
-            correction = st.text_area("Provide the correct information or missing details:")
-            if st.button("Submit Correction"):
-                corrected_prompt = (
-                    f"The following AI-generated response was marked as incorrect by a user. "
-                    f"Revise it based on the user's correction while ensuring accuracy, completeness, and technical depth.\n\n"
-                    f"**Original Question:** {optional_question}\n"
-                    f"**Original AI Answer:** {answer}\n"
-                    f"**User Correction:** {correction}\n\n"
-                    f"### Updated Answer:"
-                )
+    if feedback == "No":
+        st.session_state.show_correction = True  # ✅ Preserve correction state
 
-                revised_response = openai_client.chat.completions.create(
-                    model=selected_model,
-                    messages=[{"role": "user", "content": corrected_prompt}],
-                    max_tokens=800,
-                    temperature=0.1
-                )
+    if st.session_state.show_correction:
+        correction = st.text_area("Provide the correct information or missing details:", key="correction")
 
-                revised_answer = clean_answer(revised_response.choices[0].message.content.strip())
-                
-                st.markdown("### ✅ Updated Answer:")
-                st.write(revised_answer)
+        if st.button("Submit Correction"):
+            corrected_prompt = (
+                f"The following AI-generated response was marked as incorrect by a user. "
+                f"Revise it based on the user's correction while ensuring accuracy, completeness, and technical depth.\n\n"
+                f"**Original Question:** {optional_question}\n"
+                f"**Original AI Answer:** {st.session_state.answer}\n"
+                f"**User Correction:** {correction}\n\n"
+                f"### Updated Answer:"
+            )
 
-    elif customer_name and uploaded_file and column_location:
-        try:
-            # Read file
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file, engine="openpyxl")
+            revised_response = openai.ChatCompletion.create(
+                model=selected_model,
+                messages=[{"role": "user", "content": corrected_prompt}],
+                max_tokens=800,
+                temperature=0.1
+            )
 
-            # Convert column letters to index
-            question_index = ord(column_location.strip().upper()) - ord('A')
-            questions = df.iloc[:, question_index].dropna().tolist()
+            st.session_state.answer = clean_answer(revised_response.choices[0].message["content"].strip())
 
-            st.success(f"Extracted {len(questions)} questions for '{customer_name}'. Generating responses...")
+            st.markdown("### ✅ Updated Answer:")
+            st.write(st.session_state.answer)
 
-            answers = []
-            for idx, question in enumerate(questions, 1):
-                prompt = (
-                    f"You are an expert in Skyhigh Security products, responding to an RFP for customer '{customer_name}'. "
-                    f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
-                    f"**Do NOT include introductions or disclaimers.**\n\n"
-                    f"Product: {product_choice}\n"
-                    f"### Question:\n{question}\n\n"
-                    f"### Direct Technical Answer:"
-                )
-
-                response = openai_client.chat.completions.create(
-                    model=selected_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=800,
-                    temperature=0.1
-                )
-
-                answer = clean_answer(response.choices[0].message.content.strip())
-                answers.append(answer)
-
-                st.markdown(f"### Q{idx}: {question}")
-                st.write(answer)
-
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
-
-    else:
-        st.error("Please fill in all mandatory fields and upload a file or enter an optional question.")
 
