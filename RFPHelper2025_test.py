@@ -153,37 +153,54 @@ optional_question = st.text_input("Extra/Optional: You can ask a unique question
 # 🔹 Processing User Questions
 if st.button("Submit"):
     if optional_question:
-        question_list = [optional_question]
-    elif uploaded_file:
-        df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-        question_list = df.iloc[:, 0].dropna().tolist()
-    else:
-        st.error("Please enter a question or upload a file.")
-        st.stop()
+        prompt = (
+            f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
+            f"Your answer should be **strictly technical**, focusing on architecture, specifications, security features, compliance, integrations, and standards. "
+            f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
+            f"Customer: {customer_name}\n"
+            f"Product: {product_choice}\n"
+            f"### Question:\n{optional_question}\n\n"
+            f"### Direct Answer (no intro, purely technical):"
+        )
 
-    for question in question_list:
-        corrected_answer = st.session_state.corrections.get(question, None)
+        response = openai_client.chat.completions.create(
+            model=selected_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+            temperature=0.1
+        )
 
-        if corrected_answer:
-            answer = corrected_answer
-            st.success("✅ Retrieved from previous corrections.")
-        else:
-            prompt = f"Provide a technical response for {product_choice} regarding:\n\n{question}"
-            response = openai.ChatCompletion.create(
-                model=selected_model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=800
-            )
-            answer = clean_answer(response.choices[0].message.content.strip())
+        answer = clean_answer(response.choices[0].message.content.strip())
 
-        # Show Answer
-        st.markdown(f"### Q: {question}")
+        st.markdown(f"### Your Question: {optional_question}")
         st.write(answer)
 
-        # Allow User to Provide Feedback
-        if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
-            st.session_state.correcting_question = question
-            st.rerun()
+        # **Feedback Mechanism**
+        feedback = st.radio("Is this answer correct?", ["Yes", "No"])
+        
+        if feedback == "No":
+            correction = st.text_area("Provide the correct information or missing details:")
+            if st.button("Submit Correction"):
+                corrected_prompt = (
+                    f"The following AI-generated response was marked as incorrect by a user. "
+                    f"Revise it based on the user's correction while ensuring accuracy, completeness, and technical depth.\n\n"
+                    f"**Original Question:** {optional_question}\n"
+                    f"**Original AI Answer:** {answer}\n"
+                    f"**User Correction:** {correction}\n\n"
+                    f"### Updated Answer:"
+                )
+
+                revised_response = openai_client.chat.completions.create(
+                    model=selected_model,
+                    messages=[{"role": "user", "content": corrected_prompt}],
+                    max_tokens=800,
+                    temperature=0.1
+                )
+
+                revised_answer = clean_answer(revised_response.choices[0].message.content.strip())
+                
+                st.markdown("### ✅ Updated Answer:")
+                st.write(revised_answer)
 
 # 🔹 Correction Input UI
 if st.session_state.correcting_question:
