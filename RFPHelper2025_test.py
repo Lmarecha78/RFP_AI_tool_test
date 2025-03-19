@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import openai
 import re
-from io import BytesIO
+import requests
 import os
 
 # Streamlit page setup
@@ -12,12 +12,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# Retrieve OpenAI API key from Streamlit Secrets
+# Retrieve API Keys
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
+github_token = st.secrets.get("GITHUB_TOKEN")
 
 if not openai_api_key:
-    st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
+    st.error("❌ OpenAI API key is missing! Set it in Streamlit Cloud 'Secrets'.")
     st.stop()  # Stop execution if API key is missing
+
+if not github_token:
+    st.warning("⚠️ GitHub token missing! Corrections will not be saved to GitHub.")
 
 # ✅ Set OpenAI API key correctly
 openai.api_key = openai_api_key
@@ -56,20 +60,15 @@ product_choice = st.selectbox(
     ]
 )
 
-language_choice = st.selectbox(
-    "Select language",
-    ["English", "French", "Spanish", "German", "Italian"]
-)
+optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
 
-uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
-
-# **Model Selection**
+# Model selection
 st.markdown("#### **Select Model for Answer Generation**")
 model_choice = st.radio(
     "Choose a model:",
     options=["GPT-4.0", "Due Diligence (Fine-Tuned)"],
     captions=[
-        "Recommended option for most technical RFPs/RFIs.",
+        "Recommended for technical RFPs/RFIs.",
         "Optimized for Due Diligence and security-related questionnaires."
     ]
 )
@@ -81,15 +80,7 @@ model_mapping = {
 }
 selected_model = model_mapping[model_choice]
 
-column_location = st.text_input("Specify the location of the questions (e.g., B for column B)")
-answer_column = st.text_input("Optional: Specify the column for answers (e.g., C for column C)")
-optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
-
-# Function to clean AI-generated answers
-def clean_answer(answer):
-    return re.sub(r'(Overall,.*|In conclusion.*|Conclusion:.*)', '', answer, flags=re.IGNORECASE | re.DOTALL).strip()
-
-# ✅ Use `st.session_state` to preserve state
+# **Persist Answer and Feedback State**
 if "answer" not in st.session_state:
     st.session_state.answer = ""
 if "show_correction" not in st.session_state:
@@ -103,7 +94,7 @@ if st.button("Submit"):
         prompt = (
             f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
             f"Your answer should be **strictly technical**, focusing on architecture, specifications, security features, compliance, integrations, and standards. "
-            f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
+            f"**DO NOT** include disclaimers, introductions, or knowledge limitations. **Only provide the answer**.\n\n"
             f"Customer: {customer_name}\n"
             f"Product: {product_choice}\n"
             f"### Question:\n{optional_question}\n\n"
@@ -117,7 +108,7 @@ if st.button("Submit"):
             temperature=0.1
         )
 
-        st.session_state.answer = clean_answer(response.choices[0].message["content"].strip())
+        st.session_state.answer = response.choices[0].message["content"].strip()
 
 # Display answer if available
 if st.session_state.answer:
@@ -150,9 +141,33 @@ if st.session_state.answer:
                 temperature=0.1
             )
 
-            st.session_state.answer = clean_answer(revised_response.choices[0].message["content"].strip())
+            st.session_state.answer = revised_response.choices[0].message["content"].strip()
 
             st.markdown("### ✅ Updated Answer:")
             st.write(st.session_state.answer)
 
+            # **Save corrected answer to GitHub Gist**
+            if github_token:
+                gist_url = "https://api.github.com/gists"
+                headers = {
+                    "Authorization": f"token {github_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+                gist_data = {
+                    "description": f"Updated answer for: {optional_question}",
+                    "public": False,
+                    "files": {
+                        "Skyhigh_RFP_Response.md": {
+                            "content": f"## Updated Answer\n\n{st.session_state.answer}"
+                        }
+                    }
+                }
+
+                response = requests.post(gist_url, json=gist_data, headers=headers)
+
+                if response.status_code == 201:
+                    gist_link = response.json()["html_url"]
+                    st.success(f"✅ Correction saved to GitHub: [View Gist]({gist_link})")
+                else:
+                    st.error("❌ Failed to save correction to GitHub. Check API token.")
 
