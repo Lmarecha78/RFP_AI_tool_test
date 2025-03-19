@@ -13,14 +13,14 @@ st.set_page_config(
 )
 
 # Retrieve OpenAI API key from Streamlit Secrets
-openai_api_key = st.secrets.get("OPENAI_API_KEY")  # Use .get() to avoid crashes
+openai_api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
     st.stop()  # Stop execution if API key is missing
 
-# Initialize OpenAI client
-openai_client = openai.Client(api_key=openai_api_key)  # ✅ Corrected
+# ✅ Correct OpenAI client initialization
+openai_client = openai.Client(api_key=openai_api_key)
 
 # Set background image
 def set_background(image_url):
@@ -184,3 +184,4 @@ if st.button("Submit"):
 
     else:
         st.error("Please fill in all mandatory fields and upload a file or enter an optional question.")
+
