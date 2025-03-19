@@ -1,99 +1,28 @@
 import streamlit as st
 import pandas as pd
 import openai
-import requests
-import json
 import re
 from io import BytesIO
+import os
 
-# 🔹 Streamlit page setup
-st.set_page_config(page_title="Skyhigh Security - AI RFP Tool", page_icon="🔒", layout="wide")
+# Streamlit page setup
+st.set_page_config(
+    page_title="Skyhigh Security",
+    page_icon="🔒",
+    layout="wide"
+)
 
-# 🔹 Authentication Credentials
-PASSWORD = "Skyhigh@2025!"  # Change this to your secure password
+# Retrieve OpenAI API key from Streamlit Secrets
+openai_api_key = st.secrets.get("OPENAI_API_KEY")  # Use .get() to avoid crashes
 
-# 🔹 Function for Authentication
-def authenticate():
-    """Check user authentication and store the result in session state."""
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
-
-    if not st.session_state.authenticated:
-        st.title("🔒 Skyhigh Security RFP Tool")
-        st.subheader("Enter Password to Access")
-
-        password_input = st.text_input("Password", type="password")
-
-        if st.button("Login"):
-            if password_input == PASSWORD:
-                st.session_state.authenticated = True
-                st.success("✅ Authentication successful! Access granted.")
-                st.rerun()  
-            else:
-                st.error("❌ Incorrect password. Try again.")
-
-        st.stop()
-
-# ✅ Call authentication function
-authenticate()
-
-# 🔹 Retrieve API Keys Securely from Streamlit Secrets
-openai_api_key = st.secrets.get("OPENAI_API_KEY")
-github_token = st.secrets.get("GITHUB_TOKEN")
-
-# 🔹 GitHub Gist Information
-GITHUB_GIST_URL = "https://gist.githubusercontent.com/Lmarecha78/raw/96e4473a6d441bda6794e11d4a74b93b/corrections.json"
-GITHUB_GIST_ID = "96e4473a6d441bda6794e11d4a74b93b"
-
-# 🔹 Load corrections from GitHub Gist
-def load_corrections():
-    try:
-        response = requests.get(GITHUB_GIST_URL)
-        if response.status_code == 200:
-            return response.json()
-        return {}
-    except:
-        return {}
-
-# 🔹 Save corrections to GitHub Gist securely
-def save_corrections(corrections):
-    if not github_token:
-        st.error("❌ GitHub Token is missing! Set it in Streamlit Cloud 'Secrets'.")
-        return False
-
-    headers = {
-        "Authorization": f"token {github_token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    payload = {
-        "files": {
-            "corrections.json": {"content": json.dumps(corrections, indent=4)}
-        }
-    }
-    response = requests.patch(f"https://api.github.com/gists/{GITHUB_GIST_ID}", headers=headers, json=payload)
-    return response.status_code == 200
-
-# 🔹 Initialize session state for corrections
-if "corrections" not in st.session_state:
-    st.session_state.corrections = load_corrections()
-
-if "correcting_question" not in st.session_state:
-    st.session_state.correcting_question = None
-
-# 🔹 Check API Key
 if not openai_api_key:
-    st.error("❌ OpenAI API key is missing! Set it in Streamlit Cloud 'Secrets'.")
-    st.stop()
+    st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
+    st.stop()  # Stop execution if API key is missing
 
-# 🔹 OpenAI Client Initialization
-import openai
-openai.api_key = openai_api_key
+# Initialize OpenAI client
+openai_client = openai.OpenAI(api_key=openai_api_key)  # ✅ Now it's correctly defined
 
-# 🔹 Function to clean AI responses
-def clean_answer(answer):
-    return re.sub(r'(Overall,.*|In conclusion.*|Conclusion:.*)', '', answer, flags=re.IGNORECASE | re.DOTALL).strip()
-
-# 🔹 Set Background
+# Set background image
 def set_background(image_url):
     css = f"""
     <style>
@@ -110,10 +39,12 @@ def set_background(image_url):
 
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
-# 🔹 User Inputs
+# Branding and title
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
+# Input fields
 customer_name = st.text_input("Customer Name")
+
 product_choice = st.selectbox(
     "What is the elected product?",
     [
@@ -125,10 +56,14 @@ product_choice = st.selectbox(
     ]
 )
 
-language_choice = st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"])
+language_choice = st.selectbox(
+    "Select language",
+    ["English", "French", "Spanish", "German", "Italian"]
+)
+
 uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
 
-# 🔹 Model selection (RESTORED)
+# **Model Selection**
 st.markdown("#### **Select Model for Answer Generation**")
 model_choice = st.radio(
     "Choose a model:",
@@ -150,7 +85,11 @@ column_location = st.text_input("Specify the location of the questions (e.g., B 
 answer_column = st.text_input("Optional: Specify the column for answers (e.g., C for column C)")
 optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
 
-# 🔹 Processing User Questions
+# Function to clean AI-generated answers
+def clean_answer(answer):
+    return re.sub(r'(Overall,.*|In conclusion.*|Conclusion:.*)', '', answer, flags=re.IGNORECASE | re.DOTALL).strip()
+
+# **Submit Button Logic**
 if st.button("Submit"):
     if optional_question:
         prompt = (
@@ -176,8 +115,8 @@ if st.button("Submit"):
         st.write(answer)
 
         # **Feedback Mechanism**
-        feedback = st.radio("Is this answer correct?", ["Yes", "No"])
-        
+        feedback = st.radio("Is this answer correct?", ["Yes", "No"], key="feedback")
+
         if feedback == "No":
             correction = st.text_area("Provide the correct information or missing details:")
             if st.button("Submit Correction"):
@@ -202,18 +141,46 @@ if st.button("Submit"):
                 st.markdown("### ✅ Updated Answer:")
                 st.write(revised_answer)
 
-# 🔹 Correction Input UI
-if st.session_state.correcting_question:
-    question = st.session_state.correcting_question
-    st.warning(f"Please provide the correct answer for: **{question}**")
-    corrected_input = st.text_area("Your Correct Answer", key=f"text_{hash(question)}")
+    elif customer_name and uploaded_file and column_location:
+        try:
+            # Read file
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file, engine="openpyxl")
 
-    if st.button("Save Correction"):
-        if corrected_input:
-            st.session_state.corrections[question] = corrected_input
-            save_corrections(st.session_state.corrections)
-            st.success("✅ Correction saved!")
-            st.session_state.correcting_question = None
-            st.rerun()
-        else:
-            st.error("Correction cannot be empty.")
+            # Convert column letters to index
+            question_index = ord(column_location.strip().upper()) - ord('A')
+            questions = df.iloc[:, question_index].dropna().tolist()
+
+            st.success(f"Extracted {len(questions)} questions for '{customer_name}'. Generating responses...")
+
+            answers = []
+            for idx, question in enumerate(questions, 1):
+                prompt = (
+                    f"You are an expert in Skyhigh Security products, responding to an RFP for customer '{customer_name}'. "
+                    f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
+                    f"**Do NOT include introductions or disclaimers.**\n\n"
+                    f"Product: {product_choice}\n"
+                    f"### Question:\n{question}\n\n"
+                    f"### Direct Technical Answer:"
+                )
+
+                response = openai_client.chat.completions.create(
+                    model=selected_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=800,
+                    temperature=0.1
+                )
+
+                answer = clean_answer(response.choices[0].message.content.strip())
+                answers.append(answer)
+
+                st.markdown(f"### Q{idx}: {question}")
+                st.write(answer)
+
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+
+    else:
+        st.error("Please fill in all mandatory fields and upload a file or enter an optional question.")
