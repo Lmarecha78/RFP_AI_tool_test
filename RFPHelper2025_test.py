@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Retrieve API Keys
+# Retrieve API Key
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not openai_api_key:
@@ -102,13 +102,14 @@ st.text_input("Extra/Optional: You can ask a unique question here", key="optiona
 if st.button("Submit"):
     st.success("✅ Processing request...")
 
-    # Ensure a file is uploaded before proceeding
-    if st.session_state.uploaded_file is None:
-        st.error("❌ Please upload a file before submitting!")
+    # **Check if either a file is uploaded OR a manual question is provided**
+    if not st.session_state.uploaded_file and not st.session_state.optional_question:
+        st.error("❌ Please upload a file OR enter a unique question before submitting!")
     else:
-        st.success(f"📂 Using file: {st.session_state.uploaded_file.name}")
+        st.success("🚀 Submission accepted! Generating response...")
 
-        # ✅ Simulate AI Response (You can replace this with OpenAI API call)
+        # ✅ Simulate AI Response (Replace with OpenAI API call)
         st.write("🔍 Generating AI response...")
         st.write("✅ Response successfully generated!")
+
 
