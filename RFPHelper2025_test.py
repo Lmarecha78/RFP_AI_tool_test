@@ -102,7 +102,7 @@ if st.button("Submit"):
             f"### Direct Answer (no intro, purely technical):"
         )
 
-        response = openai_client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model=selected_model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800,
