@@ -83,14 +83,10 @@ if not openai_api_key:
     st.stop()
 
 # 🔹 OpenAI Client Initialization
-try:
-    from openai import OpenAI
-    openai_client = OpenAI(api_key=openai_api_key)
-    new_api = True
-except ImportError:
-    openai.api_key = openai_api_key
-    openai_client = openai
-    new_api = False
+import openai
+
+openai_client = openai
+openai.api_key = openai_api_key
 
 # 🔹 Function to clean AI responses
 def clean_answer(answer):
