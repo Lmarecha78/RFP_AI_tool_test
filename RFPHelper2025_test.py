@@ -2,31 +2,27 @@ import streamlit as st
 import pandas as pd
 import openai
 import re
-import requests
 import os
+from io import BytesIO
 
 # Streamlit page setup
 st.set_page_config(
-    page_title="Skyhigh Security",
+    page_title="Skyhigh Security - RFI/RFP AI Tool",
     page_icon="🔒",
     layout="wide"
 )
 
 # Retrieve API Keys
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
-github_token = st.secrets.get("GITHUB_TOKEN")
 
 if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Set it in Streamlit Cloud 'Secrets'.")
-    st.stop()  # Stop execution if API key is missing
-
-if not github_token:
-    st.warning("⚠️ GitHub token missing! Corrections will not be saved to GitHub.")
+    st.stop()
 
 # ✅ Set OpenAI API key correctly
 openai.api_key = openai_api_key
 
-# Set background image
+# **Set background image**
 def set_background(image_url):
     css = f"""
     <style>
@@ -44,130 +40,75 @@ def set_background(image_url):
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
 # Branding and title
-st.title("Skyhigh Security - RFI/RFP AI Tool")
+st.title("🔒 Skyhigh Security - RFI/RFP AI Tool")
 
-# Input fields
-customer_name = st.text_input("Customer Name")
+# **Preserve State Across Interactions**
+if "uploaded_file" not in st.session_state:
+    st.session_state.uploaded_file = None
+if "customer_name" not in st.session_state:
+    st.session_state.customer_name = ""
+if "product_choice" not in st.session_state:
+    st.session_state.product_choice = "Skyhigh Security SSE"
+if "language_choice" not in st.session_state:
+    st.session_state.language_choice = "English"
+if "column_location" not in st.session_state:
+    st.session_state.column_location = ""
+if "answer_column" not in st.session_state:
+    st.session_state.answer_column = ""
+if "optional_question" not in st.session_state:
+    st.session_state.optional_question = ""
+if "model_choice" not in st.session_state:
+    st.session_state.model_choice = "GPT-4.0"
 
-product_choice = st.selectbox(
+# **Input Fields**
+st.text_input("Customer Name", key="customer_name")
+
+st.selectbox(
     "What is the elected product?",
-    [
-        "Skyhigh Security SSE",
-        "Skyhigh Security On-Premise Proxy",
-        "Skyhigh Security GAM ICAP",
-        "Skyhigh Security CASB",
-        "Skyhigh Security Cloud Proxy"
-    ]
+    ["Skyhigh Security SSE", "Skyhigh Security On-Premise Proxy", "Skyhigh Security GAM ICAP",
+     "Skyhigh Security CASB", "Skyhigh Security Cloud Proxy"],
+    key="product_choice"
 )
 
-optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
+st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"], key="language_choice")
 
-# Model selection
+# **File Upload Section**
+uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
+
+# ✅ Store the file in session_state if uploaded
+if uploaded_file is not None:
+    st.session_state.uploaded_file = uploaded_file
+elif st.session_state.uploaded_file:
+    st.success(f"📂 File retained: {st.session_state.uploaded_file.name}")
+
+# **Model Selection**
 st.markdown("#### **Select Model for Answer Generation**")
-model_choice = st.radio(
+st.radio(
     "Choose a model:",
-    options=["GPT-4.0", "Due Diligence (Fine-Tuned)"],
+    ["GPT-4.0", "Due Diligence (Fine-Tuned)"],
+    key="model_choice",
     captions=[
         "Recommended for technical RFPs/RFIs.",
         "Optimized for Due Diligence and security-related questionnaires."
     ]
 )
 
-# Model mapping
-model_mapping = {
-    "GPT-4.0": "gpt-4-turbo",
-    "Due Diligence (Fine-Tuned)": "ft:gpt-4o-2024-08-06:personal:skyhigh-due-diligence:BClhZf1W"
-}
-selected_model = model_mapping[model_choice]
+# **Additional Inputs**
+st.text_input("Specify the location of the questions (e.g., B for column B)", key="column_location")
+st.text_input("Optional: Specify the column for answers (e.g., C for column C)", key="answer_column")
+st.text_input("Extra/Optional: You can ask a unique question here", key="optional_question")
 
-# **Persist Answer and Feedback State**
-if "answer" not in st.session_state:
-    st.session_state.answer = ""
-if "show_correction" not in st.session_state:
-    st.session_state.show_correction = False
-if "user_feedback" not in st.session_state:
-    st.session_state.user_feedback = None
-
-# **Submit Button Logic**
+# **Submit Button**
 if st.button("Submit"):
-    if optional_question:
-        prompt = (
-            f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
-            f"Your answer should be **strictly technical**, focusing on architecture, specifications, security features, compliance, integrations, and standards. "
-            f"**DO NOT** include disclaimers, introductions, or knowledge limitations. **Only provide the answer**.\n\n"
-            f"Customer: {customer_name}\n"
-            f"Product: {product_choice}\n"
-            f"### Question:\n{optional_question}\n\n"
-            f"### Direct Answer (no intro, purely technical):"
-        )
+    st.success("✅ Processing request...")
 
-        response = openai.ChatCompletion.create(
-            model=selected_model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=800,
-            temperature=0.1
-        )
+    # Ensure a file is uploaded before proceeding
+    if st.session_state.uploaded_file is None:
+        st.error("❌ Please upload a file before submitting!")
+    else:
+        st.success(f"📂 Using file: {st.session_state.uploaded_file.name}")
 
-        st.session_state.answer = response.choices[0].message["content"].strip()
-
-# Display answer if available
-if st.session_state.answer:
-    st.markdown(f"### Your Question: {optional_question}")
-    st.write(st.session_state.answer)
-
-    # **Feedback Mechanism**
-    feedback = st.radio("Is this answer correct?", ["Yes", "No"], key="feedback")
-
-    if feedback == "No":
-        st.session_state.show_correction = True  # ✅ Preserve correction state
-
-    if st.session_state.show_correction:
-        correction = st.text_area("Provide the correct information or missing details:", key="correction")
-
-        if st.button("Submit Correction"):
-            corrected_prompt = (
-                f"The following AI-generated response was marked as incorrect by a user. "
-                f"Revise it based on the user's correction while ensuring accuracy, completeness, and technical depth.\n\n"
-                f"**Original Question:** {optional_question}\n"
-                f"**Original AI Answer:** {st.session_state.answer}\n"
-                f"**User Correction:** {correction}\n\n"
-                f"### Updated Answer:"
-            )
-
-            revised_response = openai.ChatCompletion.create(
-                model=selected_model,
-                messages=[{"role": "user", "content": corrected_prompt}],
-                max_tokens=800,
-                temperature=0.1
-            )
-
-            st.session_state.answer = revised_response.choices[0].message["content"].strip()
-
-            st.markdown("### ✅ Updated Answer:")
-            st.write(st.session_state.answer)
-
-            # **Save corrected answer to GitHub Gist**
-            if github_token:
-                gist_url = "https://api.github.com/gists"
-                headers = {
-                    "Authorization": f"token {github_token}",
-                    "Accept": "application/vnd.github.v3+json"
-                }
-                gist_data = {
-                    "description": f"Updated answer for: {optional_question}",
-                    "public": False,
-                    "files": {
-                        "Skyhigh_RFP_Response.md": {
-                            "content": f"## Updated Answer\n\n{st.session_state.answer}"
-                        }
-                    }
-                }
-
-                response = requests.post(gist_url, json=gist_data, headers=headers)
-
-                if response.status_code == 201:
-                    gist_link = response.json()["html_url"]
-                    st.success(f"✅ Correction saved to GitHub: [View Gist]({gist_link})")
-                else:
-                    st.error("❌ Failed to save correction to GitHub. Check API token.")
+        # ✅ Simulate AI Response (You can replace this with OpenAI API call)
+        st.write("🔍 Generating AI response...")
+        st.write("✅ Response successfully generated!")
 
