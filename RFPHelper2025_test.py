@@ -20,7 +20,7 @@ if not openai_api_key:
     st.stop()  # Stop execution if API key is missing
 
 # Initialize OpenAI client
-openai_client = openai.OpenAI(api_key=openai_api_key)  # ✅ Now it's correctly defined
+openai_client = openai.Client(api_key=openai_api_key)  # ✅ Corrected
 
 # Set background image
 def set_background(image_url):
