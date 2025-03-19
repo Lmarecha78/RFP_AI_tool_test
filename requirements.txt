@@ -1,0 +1,10 @@
+streamlit
+openai==0.28.0
+pandas
+numpy
+requests
+markdown-it-py==3.0.0
+rich==13.9.4
+pygments==2.19.1
+openpyxl
+
