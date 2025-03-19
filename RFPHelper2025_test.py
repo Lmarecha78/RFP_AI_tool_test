@@ -82,11 +82,9 @@ if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Set it in Streamlit Cloud 'Secrets'.")
     st.stop()
 
-# 🔹 OpenAI Client Initialization
+# 🔹 OpenAI Client Initialization (Fixed)
 import openai
-
-openai_client = openai
-openai.api_key = openai_api_key
+openai.api_key = openai_api_key  # Corrected OpenAI initialization
 
 # 🔹 Function to clean AI responses
 def clean_answer(answer):
@@ -169,7 +167,7 @@ if st.button("Submit"):
             st.success("✅ Retrieved from previous corrections.")
         else:
             prompt = f"Provide a technical response for {product_choice} regarding:\n\n{question}"
-            response = openai_client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model=selected_model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=800
