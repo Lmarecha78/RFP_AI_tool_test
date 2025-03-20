@@ -80,8 +80,8 @@ if "corrections" not in st.session_state:
 if "correcting_question" not in st.session_state:
     st.session_state.correcting_question = None  # ✅ Track the question being corrected
 
-if "show_correction_input" not in st.session_state:
-    st.session_state.show_correction_input = False  # ✅ Track if the correction input should be shown
+if "correction_input_visible" not in st.session_state:
+    st.session_state.correction_input_visible = False  # ✅ Track if the correction input should be shown
 
 # 🔹 Check API Key
 if not openai_api_key:
@@ -128,80 +128,55 @@ product_choice = st.selectbox(
     ]
 )
 
-language_choice = st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"])
-uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
-
-# ✅ Model Selection (Restored)
-st.markdown("#### **Select Model for Answer Generation**")
-model_choice = st.radio(
-    "Choose a model:",
-    options=["GPT-4.0", "Due Diligence (Fine-Tuned)"],
-    captions=[
-        "Recommended option for most technical RFPs/RFIs.",
-        "Optimized for Due Diligence and security-related questionnaires."
-    ]
-)
-
-# Model mapping
-model_mapping = {
-    "GPT-4.0": "gpt-4-turbo",
-    "Due Diligence (Fine-Tuned)": "ft:gpt-4o-2024-08-06:personal:skyhigh-due-diligence:BClhZf1W"
-}
-selected_model = model_mapping[model_choice]
-
-optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
+optional_question = st.text_input("Ask a unique question")
 
 # 🔹 Processing User Questions
 if st.button("Submit"):
-    st.session_state.show_correction_input = False  # ✅ Reset correction input state
+    st.session_state.correction_input_visible = False  # ✅ Reset correction input state
 
     if optional_question:
-        question_list = [optional_question]
-    elif uploaded_file:
-        df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-        question_list = df.iloc[:, 0].dropna().tolist()
+        question = optional_question
     else:
-        st.error("Please enter a question or upload a file.")
+        st.error("Please enter a question.")
         st.stop()
 
-    for question in question_list:
-        corrected_answer = st.session_state.corrections.get(question, None)
+    corrected_answer = st.session_state.corrections.get(question, None)
 
-        if corrected_answer:
-            answer = corrected_answer
-            st.success("✅ Retrieved from previous corrections.")
-        else:
-            prompt = f"Provide a technical response for {product_choice} regarding:\n\n{question}"
-            response = openai.ChatCompletion.create(
-                model=selected_model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=800
-            )
-            answer = clean_answer(response.choices[0].message.content.strip())
+    if corrected_answer:
+        answer = corrected_answer
+        st.success("✅ Retrieved from previous corrections.")
+    else:
+        prompt = f"Provide a technical response for {product_choice} regarding:\n\n{question}"
+        response = openai.ChatCompletion.create(
+            model="gpt-4-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800
+        )
+        answer = clean_answer(response.choices[0].message.content.strip())
 
-        st.markdown(f"### 📝 Response for: **{question}**")
-        st.write(answer)
+    st.markdown(f"### 📝 Response for: **{question}**")
+    st.write(answer)
 
-        # ✅ Show Correction Buttons Without Resetting the Page
-        if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
-            st.session_state.correcting_question = question
-            st.session_state.show_correction_input = True  # ✅ Show input immediately
+    # ✅ Show Correction Button Without Resetting the Page
+    if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
+        st.session_state.correcting_question = question
+        st.session_state.correction_input_visible = True  # ✅ Show input immediately
 
 # 🔹 Show Correction Input Immediately When "Incorrect" Is Clicked
-if st.session_state.show_correction_input and st.session_state.correcting_question:
+if st.session_state.correction_input_visible and st.session_state.correcting_question:
     question = st.session_state.correcting_question
     st.warning(f"📝 Provide a corrected answer for: **{question}**")
-    corrected_input = st.text_area("Your Correct Answer", key=f"text_{hash(question)}")
 
-    if st.button("Save Correction", key=f"save_{hash(question)}"):
-        if corrected_input:
-            st.session_state.corrections[question] = corrected_input
-            save_corrections(st.session_state.corrections)
-            st.success("✅ Correction saved to GitHub Gist!")
-            st.session_state.show_correction_input = False
-        else:
-            st.error("⚠️ Correction cannot be empty.")
+    with st.form(key="correction_form"):
+        corrected_input = st.text_area("Your Correct Answer", key=f"text_{hash(question)}")
+        submit_button = st.form_submit_button("Save Correction")
 
-
-
+        if submit_button:
+            if corrected_input:
+                st.session_state.corrections[question] = corrected_input
+                save_corrections(st.session_state.corrections)
+                st.success("✅ Correction saved to GitHub Gist!")
+                st.session_state.correction_input_visible = False
+            else:
+                st.error("⚠️ Correction cannot be empty.")
 
