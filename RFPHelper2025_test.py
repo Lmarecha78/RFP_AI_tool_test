@@ -101,35 +101,21 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ JavaScript function for copying text (prevents full page refresh)
-copy_script = """
-<script>
-function copyToClipboard(answerId) {
-    var text = document.getElementById(answerId).innerText;
-    navigator.clipboard.writeText(text).then(function() {
-        alert("Copied to clipboard!");
-    }, function(err) {
-        console.error("Error copying text: ", err);
-    });
-}
-</script>
-"""
-
-st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
-
-# ✅ Function to display answers with a WORKING COPY BUTTON
+# ✅ Function to display answers with a Streamlit Copy Button
 def display_answer(question, answer, index):
-    """Displays each answer with correct formatting and working copy button."""
+    """Displays each answer with correct formatting and a working copy button."""
     unique_id = f"answer_{index}"  # Unique ID for each answer
 
-    st.markdown(f"""
-    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
-        <h4 style="color: #F5A623;">Q{index}: {question}</h4>
-        <p id="{unique_id}" style="font-size: 16px; color: #FFFFFF;">{answer}</p>
-        <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
-        onclick="copyToClipboard('{unique_id}')">📋 Copy</button>
-    </div><br>
-    """, unsafe_allow_html=True)
+    with st.container():
+        st.markdown(f"""
+        <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
+            <h4 style="color: #F5A623;">Q{index}: {question}</h4>
+            <p id="{unique_id}" style="font-size: 16px; color: #FFFFFF;">{answer}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # ✅ Add a real Streamlit copy button (copies text)
+        st.code(answer, language="text")  # This enables text selection & copying in a user-friendly way
 
 # **Submit Button Logic**
 if st.button("Submit"):
@@ -174,4 +160,5 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
 
