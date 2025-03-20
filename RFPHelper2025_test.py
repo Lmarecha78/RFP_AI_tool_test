@@ -28,7 +28,7 @@ def authenticate():
             if password_input == PASSWORD:
                 st.session_state.authenticated = True
                 st.success("✅ Authentication successful! Access granted.")
-                st.rerun()  # ✅ Fixed: Replaced `st.experimental_rerun()` with `st.rerun()`
+                st.rerun()
             else:
                 st.error("❌ Incorrect password. Try again.")
 
@@ -128,7 +128,28 @@ product_choice = st.selectbox(
     ]
 )
 
-optional_question = st.text_input("Ask a unique question")
+language_choice = st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"])
+uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
+
+# ✅ Model Selection (Restored)
+st.markdown("#### **Select Model for Answer Generation**")
+model_choice = st.radio(
+    "Choose a model:",
+    options=["GPT-4.0", "Due Diligence (Fine-Tuned)"],
+    captions=[
+        "Recommended option for most technical RFPs/RFIs.",
+        "Optimized for Due Diligence and security-related questionnaires."
+    ]
+)
+
+# Model mapping
+model_mapping = {
+    "GPT-4.0": "gpt-4-turbo",
+    "Due Diligence (Fine-Tuned)": "ft:gpt-4o-2024-08-06:personal:skyhigh-due-diligence:BClhZf1W"
+}
+selected_model = model_mapping[model_choice]
+
+optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
 
 # 🔹 Processing User Questions
 if st.button("Submit"):
@@ -148,7 +169,7 @@ if st.button("Submit"):
     else:
         prompt = f"Provide a technical response for {product_choice} regarding:\n\n{question}"
         response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
+            model=selected_model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800
         )
@@ -179,4 +200,5 @@ if st.session_state.correction_input_visible and st.session_state.correcting_que
                 st.session_state.correction_input_visible = False
             else:
                 st.error("⚠️ Correction cannot be empty.")
+
 
