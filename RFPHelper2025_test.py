@@ -78,7 +78,7 @@ if "corrections" not in st.session_state:
     st.session_state.corrections = load_corrections()
 
 if "correcting_question" not in st.session_state:
-    st.session_state.correcting_question = None
+    st.session_state.correcting_question = None  # ✅ Track the question being corrected
 
 # 🔹 Check API Key
 if not openai_api_key:
@@ -125,7 +125,6 @@ product_choice = st.selectbox(
     ]
 )
 
-# ✅ Restored UI Components
 language_choice = st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"])
 uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
 
@@ -178,12 +177,11 @@ if st.button("Submit"):
         st.markdown(f"### 📝 Response for: **{question}**")
         st.write(answer)
 
-        # ✅ Fixed Incorrect Button Behavior
+        # ✅ Show Correction Buttons Without Resetting the Page
         if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
             st.session_state.correcting_question = question
-            st.experimental_rerun()
 
-# 🔹 Show Correction Input When User Clicks Incorrect
+# 🔹 Show Correction Input Immediately When "Incorrect" Is Clicked
 if st.session_state.correcting_question:
     question = st.session_state.correcting_question
     st.warning(f"📝 Provide a corrected answer for: **{question}**")
