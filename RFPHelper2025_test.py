@@ -3,6 +3,7 @@ import pandas as pd
 import openai
 import re
 from io import BytesIO
+import os
 
 # Streamlit page setup
 st.set_page_config(
@@ -100,65 +101,100 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ Function to display answers in an **elegant layout with a working copy button**
-def display_answer(question, answer, index):
-    """Displays each answer with a modern UI and working copy button."""
-    answer_id = f"answer_{index}"  # Unique ID for each answer
+# ✅ JavaScript function for copying text (prevents full page refresh)
+copy_script = """
+<script>
+function copyToClipboard(answerId) {
+    var text = document.getElementById(answerId).innerText;
+    navigator.clipboard.writeText(text).then(function() {
+        alert("Copied to clipboard!");
+    }, function(err) {
+        console.error("Error copying text: ", err);
+    });
+}
+</script>
+"""
 
-    st.markdown(f"""
-        <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; 
-                    box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1); margin-bottom: 15px;">
-            <h4 style="color: #F5A623; margin-bottom: 10px;">Q{index}: {question}</h4>
-            <textarea id="{answer_id}" style="width:100%; height:120px; background-color: #333; color: white; padding:10px; border-radius: 5px;">{answer}</textarea>
-            <button onclick="navigator.clipboard.writeText(document.getElementById('{answer_id}').value)" 
-                    style="background-color: #F5A623; border: none; padding: 8px 12px; 
-                    border-radius: 5px; cursor: pointer; color: black; font-weight: bold; margin-top: 10px;">
-                📋 Copy
-            </button>
-        </div>
-    """, unsafe_allow_html=True)
+st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
 
 # **Submit Button Logic**
 if st.button("Submit"):
-    if optional_question:
-        st.info(f"Generating answer for: {optional_question}")
-
-        response = openai.ChatCompletion.create(
-            model=selected_model,
-            messages=[{"role": "user", "content": optional_question}],
-            max_tokens=800,
-            temperature=0.1
-        )
-
-        answer = clean_answer(response.choices[0].message.content.strip())
-
-        if not answer:
-            answer = "⚠ No specific answer was found for this question."
-
-        display_answer(optional_question, answer, "Single")
-
-    elif uploaded_file and customer_name and column_location:
+    if customer_name and uploaded_file and column_location:
         try:
-            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file, engine="openpyxl")
+            # Read file
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file, engine="openpyxl")
+
+            # Convert column letters to index
             question_index = ord(column_location.strip().upper()) - ord('A')
             questions = df.iloc[:, question_index].dropna().tolist()
 
             if not questions:
-                st.warning("⚠ No valid questions found in the selected column.")
+                st.warning("⚠ No valid questions found in the selected column. Please verify your file format and column selection.")
                 st.stop()
 
+            answer_index = None
+            if answer_column:
+                answer_index = ord(answer_column.strip().upper()) - ord('A')
+                if answer_index >= len(df.columns):
+                    df.insert(answer_index, 'Answers', '')
+
+            st.success(f"Extracted {len(questions)} questions for '{customer_name}'. Generating responses...")
+
+            answers = []
             for idx, question in enumerate(questions, 1):
+                prompt = (
+                    f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
+                    f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
+                    f"Ensure the response aligns with the security priorities and infrastructure of {customer_name}. "
+                    f"Do NOT include introductions, disclaimers, conclusions, or benefits.\n\n"
+                    f"Product: {product_choice}\n"
+                    f"### Question:\n{question}\n\n"
+                    f"### Direct Technical Answer (tailored for {customer_name}):"
+                )
+
                 response = openai.ChatCompletion.create(
                     model=selected_model,
-                    messages=[{"role": "user", "content": question}],
+                    messages=[{"role": "user", "content": prompt}],
                     max_tokens=800,
                     temperature=0.1
                 )
 
                 answer = clean_answer(response.choices[0].message.content.strip())
 
-                display_answer(question, answer, idx)
+                if not answer or "I don't know" in answer or "as an AI" in answer:
+                    answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
+
+                answers.append(answer)
+
+                # ✅ Improved UI Layout for Answers
+                st.markdown(f"""
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
+                        <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
+                        <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
+                        <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
+                        onclick="copyToClipboard('answer_{idx}')">📋 Copy</button>
+                    </div><br>
+                """, unsafe_allow_html=True)
+
+            # ✅ Provide Download Link After All Answers Are Displayed
+            if answer_index is not None:
+                df.iloc[:len(answers), answer_index] = answers
+
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                    df.to_excel(writer, index=False)
+
+                output.seek(0)
+
+                st.download_button(
+                    label="📥 Download File with Answers",
+                    data=output,
+                    file_name=f"{customer_name}_RFP_responses.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
