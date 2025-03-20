@@ -103,6 +103,8 @@ def clean_answer(answer):
 
 # **Submit Button Logic**
 if st.button("Submit"):
+    answers = []
+
     if optional_question:
         # ✅ Handle Single Question Submissions
         st.markdown(f"💬 **Generating answer for:** {optional_question}")
@@ -129,13 +131,15 @@ if st.button("Submit"):
         if not answer or "I don't know" in answer or "as an AI" in answer:
             answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
 
-        # ✅ Improved UI Layout for Single Answer
+        # ✅ Elegant Layout for Single Answer
         st.markdown(f"""
             <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
                 <h4 style="color: #F5A623;">Q: {optional_question}</h4>
                 <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
             </div><br>
         """, unsafe_allow_html=True)
+
+        answers.append((optional_question, answer))
 
     elif customer_name and uploaded_file and column_location:
         try:
@@ -152,7 +156,6 @@ if st.button("Submit"):
                 st.warning("⚠ No valid questions found in the selected column. Please verify your file format and column selection.")
                 st.stop()
 
-            answers = []
             for idx, question in enumerate(questions, 1):
                 prompt = (
                     f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
@@ -176,7 +179,7 @@ if st.button("Submit"):
                 if not answer or "I don't know" in answer or "as an AI" in answer:
                     answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
 
-                answers.append(answer)
+                answers.append((question, answer))
 
                 # ✅ Elegant Layout for File-Based Answers
                 st.markdown(f"""
@@ -186,8 +189,20 @@ if st.button("Submit"):
                     </div><br>
                 """, unsafe_allow_html=True)
 
+            # ✅ Provide Download Link at the End
+            df["Answers"] = [a[1] for a in answers]
+            output = BytesIO()
+            df.to_excel(output, index=False, engine="openpyxl")
+            output.seek(0)
+
+            st.download_button(
+                label="📥 Download File with Answers",
+                data=output,
+                file_name=f"{customer_name}_RFP_responses.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
 
 
