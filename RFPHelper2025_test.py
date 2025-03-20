@@ -141,5 +141,50 @@ if st.button("Submit"):
 
         answer = clean_answer(response.choices[0].message.content.strip())
 
-        if not answer or "I don't know
+        if not answer or "I don't know" in answer or "as an AI" in answer:
+            answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
 
+        # ✅ Display Answer
+        st.markdown(f"**Q:** {optional_question}")
+        st.code(answer, language="markdown")
+
+    elif uploaded_file and customer_name and column_location:  # ✅ Handles file-based questions
+        try:
+            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file, engine="openpyxl")
+
+            question_index = ord(column_location.strip().upper()) - ord('A')
+            questions = df.iloc[:, question_index].dropna().tolist()
+
+            if not questions:
+                st.warning("⚠ No valid questions found in the selected column. Please verify your file format and column selection.")
+                st.stop()
+
+            answers = []
+            for idx, question in enumerate(questions, 1):
+                prompt = (
+                    f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
+                    f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
+                    f"Do NOT include introductions, disclaimers, conclusions, or benefits.\n\n"
+                    f"Product: {product_choice}\n"
+                    f"### Question:\n{question}\n\n"
+                    f"### Direct Technical Answer:"
+                )
+
+                response = openai.ChatCompletion.create(
+                    model=selected_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=800,
+                    temperature=0.1
+                )
+
+                answer = clean_answer(response.choices[0].message.content.strip())
+
+                answers.append(answer)
+                st.markdown(f"**Q{idx}:** {question}")
+                st.code(answer, language="markdown")
+
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+
+    else:
+        st.error("⚠ Please upload a file or ask a single question.")
