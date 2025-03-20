@@ -190,7 +190,11 @@ if st.button("Submit"):
                 """, unsafe_allow_html=True)
 
             # ✅ Provide Download Link at the End
-            df["Answers"] = [a[1] for a in answers]
+            if answer_column and len(answers) == len(df):
+    df[answer_column] = [a[1] for a in answers]  # Ensures the correct number of rows
+else:
+    df["Answers"] = pd.Series([a[1] for a in answers])  # Uses Series to avoid length mismatch
+
             output = BytesIO()
             df.to_excel(output, index=False, engine="openpyxl")
             output.seek(0)
