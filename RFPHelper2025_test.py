@@ -141,23 +141,5 @@ if st.button("Submit"):
 
         answer = clean_answer(response.choices[0].message.content.strip())
 
-        if not answer or "I don't know" in answer or "as an AI" in answer:
-            answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
+        if not answer or "I don't know
 
-        # ✅ Improved UI Layout for Answer
-        st.markdown(f"""
-            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
-                <h4 style="color: #F5A623;">Question: {optional_question}</h4>
-                <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
-                <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
-                onclick="copyToClipboard('single_answer')">📋 Copy</button>
-            </div><br>
-        """, unsafe_allow_html=True)
-
-        st.markdown(f'<div id="single_answer" style="display: none;">{answer}</div>', unsafe_allow_html=True)
-
-    elif customer_name and uploaded_file and column_location:  # ✅ Handles file-based questions
-        st.warning("⚠ A file is required for batch processing. Please upload a CSV/XLS file or ask a single question.")
-
-    else:
-        st.error("⚠ Please enter a valid question or upload a file to proceed.")
