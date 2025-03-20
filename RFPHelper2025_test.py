@@ -101,22 +101,6 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ JavaScript function for copying text (prevents full page refresh)
-copy_script = """
-<script>
-function copyToClipboard(answerId) {
-    var text = document.getElementById(answerId).innerText;
-    navigator.clipboard.writeText(text).then(function() {
-        alert("Copied to clipboard!");
-    }, function(err) {
-        console.error("Error copying text: ", err);
-    });
-}
-</script>
-"""
-
-st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
-
 # **Submit Button Logic**
 if st.button("Submit"):
     if customer_name and uploaded_file and column_location:
@@ -169,13 +153,11 @@ if st.button("Submit"):
 
                 answers.append(answer)
 
-                # ✅ Improved UI Layout for Answers
+                # ✅ Improved UI Layout for Answers (NO COPY BUTTON)
                 st.markdown(f"""
                     <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
                         <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
                         <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
-                        <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
-                        onclick="copyToClipboard('answer_{idx}')">📋 Copy</button>
                     </div><br>
                 """, unsafe_allow_html=True)
 
@@ -198,3 +180,4 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
