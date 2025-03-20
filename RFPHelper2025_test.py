@@ -80,6 +80,9 @@ if "corrections" not in st.session_state:
 if "correcting_question" not in st.session_state:
     st.session_state.correcting_question = None  # ✅ Track the question being corrected
 
+if "show_correction_input" not in st.session_state:
+    st.session_state.show_correction_input = False  # ✅ Track if the correction input should be shown
+
 # 🔹 Check API Key
 if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Set it in Streamlit Cloud 'Secrets'.")
@@ -150,6 +153,8 @@ optional_question = st.text_input("Extra/Optional: You can ask a unique question
 
 # 🔹 Processing User Questions
 if st.button("Submit"):
+    st.session_state.show_correction_input = False  # ✅ Reset correction input state
+
     if optional_question:
         question_list = [optional_question]
     elif uploaded_file:
@@ -180,9 +185,10 @@ if st.button("Submit"):
         # ✅ Show Correction Buttons Without Resetting the Page
         if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
             st.session_state.correcting_question = question
+            st.session_state.show_correction_input = True  # ✅ Show input immediately
 
 # 🔹 Show Correction Input Immediately When "Incorrect" Is Clicked
-if st.session_state.correcting_question:
+if st.session_state.show_correction_input and st.session_state.correcting_question:
     question = st.session_state.correcting_question
     st.warning(f"📝 Provide a corrected answer for: **{question}**")
     corrected_input = st.text_area("Your Correct Answer", key=f"text_{hash(question)}")
@@ -192,9 +198,10 @@ if st.session_state.correcting_question:
             st.session_state.corrections[question] = corrected_input
             save_corrections(st.session_state.corrections)
             st.success("✅ Correction saved to GitHub Gist!")
-            st.session_state.correcting_question = None  # Reset correction state
+            st.session_state.show_correction_input = False
         else:
             st.error("⚠️ Correction cannot be empty.")
+
 
 
 
