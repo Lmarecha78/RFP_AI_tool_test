@@ -28,7 +28,7 @@ def authenticate():
             if password_input == PASSWORD:
                 st.session_state.authenticated = True
                 st.success("✅ Authentication successful! Access granted.")
-                st.rerun()  
+                st.experimental_rerun()  
             else:
                 st.error("❌ Incorrect password. Try again.")
 
@@ -111,7 +111,7 @@ def set_background(image_url):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
+set_background("https://raw.githubusercontent.com/Lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
 # 🔹 User Inputs
 st.title("Skyhigh Security - RFI/RFP AI Tool")
