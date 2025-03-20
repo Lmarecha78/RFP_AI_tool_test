@@ -101,21 +101,21 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ Function to display answers with a Streamlit Copy Button
+# ✅ Function to display answers in an elegant layout
 def display_answer(question, answer, index):
     """Displays each answer with correct formatting and a working copy button."""
     unique_id = f"answer_{index}"  # Unique ID for each answer
 
-    with st.container():
-        st.markdown(f"""
-        <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
-            <h4 style="color: #F5A623;">Q{index}: {question}</h4>
-            <p id="{unique_id}" style="font-size: 16px; color: #FFFFFF;">{answer}</p>
+    st.markdown(f"""
+        <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; 
+                    box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1); margin-bottom: 15px;">
+            <h4 style="color: #F5A623; margin-bottom: 10px;">Q{index}: {question}</h4>
+            <p id="{unique_id}" style="font-size: 16px; color: #FFFFFF; line-height: 1.5;">{answer}</p>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('{unique_id}').innerText)"
+                    style="background-color: #F5A623; color: black; border: none; padding: 8px 15px;
+                    border-radius: 5px; cursor: pointer; font-weight: bold;">📋 Copy</button>
         </div>
-        """, unsafe_allow_html=True)
-        
-        # ✅ Add a real Streamlit copy button (copies text)
-        st.code(answer, language="text")  # This enables text selection & copying in a user-friendly way
+    """, unsafe_allow_html=True)
 
 # **Submit Button Logic**
 if st.button("Submit"):
@@ -160,5 +160,4 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
 
