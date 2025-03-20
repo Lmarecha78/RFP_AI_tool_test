@@ -103,20 +103,17 @@ def clean_answer(answer):
 
 # **Submit Button Logic**
 if st.button("Submit"):
-    answers = []
-
     if optional_question:
-        # ✅ Handle Single Question Submissions
-        st.markdown(f"💬 **Generating answer for:** {optional_question}")
+        st.info(f"Generating answer for: {optional_question}")
 
         prompt = (
-            f"You are an expert in Skyhigh Security products, responding to an RFP. "
-            f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
-            f"Ensure the response aligns with industry best practices. "
-            f"Do NOT include introductions, disclaimers, conclusions, or benefits.\n\n"
+            f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
+            f"Your answer should be **strictly technical**, focusing on architecture, specifications, security features, compliance, integrations, and standards. "
+            f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
+            f"Customer: {customer_name}\n"
             f"Product: {product_choice}\n"
             f"### Question:\n{optional_question}\n\n"
-            f"### Direct Technical Answer:"
+            f"### Direct Answer (no intro, purely technical):"
         )
 
         response = openai.ChatCompletion.create(
@@ -128,27 +125,22 @@ if st.button("Submit"):
 
         answer = clean_answer(response.choices[0].message.content.strip())
 
-        if not answer or "I don't know" in answer or "as an AI" in answer:
-            answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
-
-        # ✅ Elegant Layout for Single Answer
         st.markdown(f"""
-            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
-                <h4 style="color: #F5A623;">Q: {optional_question}</h4>
+            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
+                <h4 style="color: #F5A623;">QSingle: {optional_question}</h4>
                 <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
             </div><br>
         """, unsafe_allow_html=True)
 
-        answers.append((optional_question, answer))
-
     elif customer_name and uploaded_file and column_location:
         try:
-            # ✅ Handle File-Based Questions
+            # Read file
             if uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file, engine="openpyxl")
 
+            # Convert column letters to index
             question_index = ord(column_location.strip().upper()) - ord('A')
             questions = df.iloc[:, question_index].dropna().tolist()
 
@@ -156,6 +148,9 @@ if st.button("Submit"):
                 st.warning("⚠ No valid questions found in the selected column. Please verify your file format and column selection.")
                 st.stop()
 
+            st.success(f"Extracted {len(questions)} questions for '{customer_name}'. Generating responses...")
+
+            answers = []
             for idx, question in enumerate(questions, 1):
                 prompt = (
                     f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
@@ -176,35 +171,21 @@ if st.button("Submit"):
 
                 answer = clean_answer(response.choices[0].message.content.strip())
 
-                if not answer or "I don't know" in answer or "as an AI" in answer:
-                    answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
+                answers.append(answer)
 
-                answers.append((question, answer))
-
-                # ✅ Elegant Layout for File-Based Answers
                 st.markdown(f"""
-                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
                         <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
                         <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
                     </div><br>
                 """, unsafe_allow_html=True)
 
-            # ✅ Provide Download Link at the End
-            if answer_column and len(answers) == len(df):
-    df[answer_column] = [a[1] for a in answers]  # Ensures the correct number of rows
-else:
-    df["Answers"] = pd.Series([a[1] for a in answers])  # Uses Series to avoid length mismatch
-
             output = BytesIO()
+            df["Answers"] = pd.Series(answers)  # Fixes length mismatch
             df.to_excel(output, index=False, engine="openpyxl")
             output.seek(0)
 
-            st.download_button(
-                label="📥 Download File with Answers",
-                data=output,
-                file_name=f"{customer_name}_RFP_responses.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button("📥 Download File with Answers", data=output, file_name=f"{customer_name}_RFP_responses.xlsx")
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
