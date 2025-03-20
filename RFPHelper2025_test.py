@@ -1,10 +1,8 @@
-
 import streamlit as st
 import pandas as pd
 import openai
 import re
 from io import BytesIO
-import os
 
 # Streamlit page setup
 st.set_page_config(
@@ -163,3 +161,4 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
