@@ -37,11 +37,16 @@ def set_background(image_url):
 
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
+# Function to clear all inputs
+def clear_inputs():
+    st.session_state.clear()  # Clears the entire session state
+    st.rerun()  # Forces the app to reload
+
 # Branding and title
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
 # Input fields
-customer_name = st.text_input("Customer Name")
+customer_name = st.text_input("Customer Name", key="customer_name")
 
 product_choice = st.selectbox(
     "What is the elected product?",
@@ -51,15 +56,17 @@ product_choice = st.selectbox(
         "Skyhigh Security GAM ICAP",
         "Skyhigh Security CASB",
         "Skyhigh Security Cloud Proxy"
-    ]
+    ],
+    key="product_choice"
 )
 
 language_choice = st.selectbox(
     "Select language",
-    ["English", "French", "Spanish", "German", "Italian"]
+    ["English", "French", "Spanish", "German", "Italian"],
+    key="language_choice"
 )
 
-uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
+uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"], key="uploaded_file")
 
 # **Model Selection**
 st.markdown("#### **Select Model for Answer Generation**")
@@ -69,7 +76,8 @@ model_choice = st.radio(
     captions=[
         "Recommended option for most technical RFPs/RFIs.",
         "Optimized for Due Diligence and security-related questionnaires."
-    ]
+    ],
+    key="model_choice"
 )
 
 # Model mapping
@@ -79,9 +87,9 @@ model_mapping = {
 }
 selected_model = model_mapping[model_choice]
 
-column_location = st.text_input("Specify the location of the questions (e.g., B for column B)")
-answer_column = st.text_input("Optional: Specify the column for answers (e.g., C for column C)")
-optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
+column_location = st.text_input("Specify the location of the questions (e.g., B for column B)", key="column_location")
+answer_column = st.text_input("Optional: Specify the column for answers (e.g., C for column C)", key="answer_column")
+optional_question = st.text_input("Extra/Optional: You can ask a unique question here", key="optional_question")
 
 # ✅ Function to clean answers (Removes any conclusion, benefits, markdown formatting)
 def clean_answer(answer):
@@ -181,7 +189,7 @@ if st.button("Submit"):
                 """, unsafe_allow_html=True)
 
             output = BytesIO()
-            df["Answers"] = pd.Series(answers)  # Fixes length mismatch
+            df["Answers"] = pd.Series(answers)
             df.to_excel(output, index=False, engine="openpyxl")
             output.seek(0)
 
@@ -189,3 +197,7 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
+# ✅ Clear Button
+st.button("Clear", on_click=clear_inputs)
+
