@@ -127,7 +127,7 @@ if st.button("Submit"):
 
         st.markdown(f"""
             <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
-                <h4 style="color: #F5A623;">QSingle: {optional_question}</h4>
+                <h4 style="color: #F5A623;">{optional_question}</h4>
                 <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
             </div><br>
         """, unsafe_allow_html=True)
@@ -189,5 +189,3 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
-
