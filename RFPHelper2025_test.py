@@ -101,33 +101,21 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ JavaScript function for copying text (WORKING COPY BUTTON)
-copy_script = """
-<script>
-function copyToClipboard(textId) {
-    var text = document.getElementById(textId).innerText;
-    navigator.clipboard.writeText(text).then(function() {
-        alert("Copied to clipboard!");
-    }).catch(function(err) {
-        console.error("Error copying text: ", err);
-    });
-}
-</script>
-"""
-
-st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
-
-# ✅ Function to display answers with correct layout and WORKING COPY BUTTON
+# ✅ Function to display answers with a WORKING COPY BUTTON
 def display_answer(question, answer, index):
-    """Displays each answer with consistent formatting and a working copy button."""
+    """Displays each answer with correct formatting and working copy button."""
     st.markdown(f"""
     <div style="background-color: #222222; padding: 15px; border-radius: 10px; margin-bottom: 10px; color: #FFFFFF;">
         <h4 style="color: #F5A623;">Q{index}: {question}</h4>
         <p id="answer_{index}" style="font-size: 16px;">{answer}</p>
-        <button style="background-color: #F5A623; color: black; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
-        onclick="copyToClipboard('answer_{index}')">📋 Copy</button>
     </div>
     """, unsafe_allow_html=True)
+
+    st.code(answer, language="text")  # ✅ Makes text selectable
+
+    if st.button(f"📋 Copy Answer {index}"):
+        st.session_state["clipboard"] = answer  # ✅ Stores in session state
+        st.success("✅ Answer copied to clipboard! (You can manually paste it)")
 
 # **Submit Button Logic**
 if st.button("Submit"):
@@ -192,5 +180,3 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
-
