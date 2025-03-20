@@ -101,75 +101,67 @@ def clean_answer(answer):
 
     return answer
 
+# ✅ JavaScript function for copying text (prevents full page refresh)
+copy_script = """
+<script>
+function copyToClipboard(answerId) {
+    var text = document.getElementById(answerId).innerText;
+    navigator.clipboard.writeText(text).then(function() {
+        alert("Copied to clipboard!");
+    }, function(err) {
+        console.error("Error copying text: ", err);
+    });
+}
+</script>
+"""
+
+st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
+
 # ✅ Function to display answers with a WORKING COPY BUTTON
 def display_answer(question, answer, index):
     """Displays each answer with correct formatting and working copy button."""
     st.markdown(f"""
-    <div style="background-color: #222222; padding: 15px; border-radius: 10px; margin-bottom: 10px; color: #FFFFFF;">
+    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
         <h4 style="color: #F5A623;">Q{index}: {question}</h4>
-        <p id="answer_{index}" style="font-size: 16px;">{answer}</p>
-    </div>
+        <p id="answer_{index}" style="font-size: 16px; color: #FFFFFF;">{answer}</p>
+        <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
+        onclick="copyToClipboard('answer_{index}')">📋 Copy</button>
+    </div><br>
     """, unsafe_allow_html=True)
-
-    st.code(answer, language="text")  # ✅ Makes text selectable
-
-    if st.button(f"📋 Copy Answer {index}"):
-        st.session_state["clipboard"] = answer  # ✅ Stores in session state
-        st.success("✅ Answer copied to clipboard! (You can manually paste it)")
 
 # **Submit Button Logic**
 if st.button("Submit"):
-    if optional_question:  # ✅ Handles single question input
+    if optional_question:
         st.info(f"Generating answer for: {optional_question}")
-
-        prompt = (
-            f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
-            f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
-            f"Ensure the response aligns with the security priorities and infrastructure of {customer_name}. "
-            f"Do NOT include introductions, disclaimers, conclusions, or benefits.\n\n"
-            f"Product: {product_choice}\n"
-            f"### Question:\n{optional_question}\n\n"
-            f"### Direct Technical Answer (tailored for {customer_name}):"
-        )
 
         response = openai.ChatCompletion.create(
             model=selected_model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": optional_question}],
             max_tokens=800,
             temperature=0.1
         )
 
         answer = clean_answer(response.choices[0].message.content.strip())
 
-        if not answer or "I don't know" in answer or "as an AI" in answer:
-            answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
+        if not answer:
+            answer = "⚠ No specific answer was found for this question."
 
         display_answer(optional_question, answer, "Single")
 
-    elif uploaded_file and customer_name and column_location:  # ✅ Handles file-based questions
+    elif uploaded_file and customer_name and column_location:
         try:
             df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file, engine="openpyxl")
-
             question_index = ord(column_location.strip().upper()) - ord('A')
             questions = df.iloc[:, question_index].dropna().tolist()
 
             if not questions:
-                st.warning("⚠ No valid questions found in the selected column. Please verify your file format and column selection.")
+                st.warning("⚠ No valid questions found in the selected column.")
                 st.stop()
 
             for idx, question in enumerate(questions, 1):
-                prompt = (
-                    f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
-                    f"Provide a detailed, precise, and technical response sourced explicitly from official Skyhigh Security documentation. "
-                    f"Do NOT include introductions, disclaimers, conclusions, or benefits.\n\n"
-                    f"Product: {product_choice}\n"
-                    f"### Question:\n{question}\n\n"
-                    f"### Direct Technical Answer:"
-                )
-
                 response = openai.ChatCompletion.create(
                     model=selected_model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": question}],
                     max_tokens=800,
                     temperature=0.1
                 )
@@ -180,3 +172,4 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
