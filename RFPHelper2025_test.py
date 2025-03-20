@@ -39,14 +39,15 @@ set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/sk
 
 # **Function to Clear All Inputs**
 def clear_inputs():
-    for key in st.session_state.keys():
-        del st.session_state[key]  # Clears session state variables
-    st.experimental_rerun()  # Force re-run the app to clear UI
+    """Resets all input fields by clearing Streamlit session state."""
+    for key in ["customer_name", "product_choice", "language_choice", "uploaded_file",
+                "model_choice", "column_location", "answer_column", "optional_question"]:
+        st.session_state[key] = ""
 
 # Branding and title
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# Input fields
+# **Input Fields**
 customer_name = st.text_input("Customer Name", key="customer_name")
 
 product_choice = st.selectbox(
@@ -93,6 +94,94 @@ answer_column = st.text_input("Optional: Specify the column for answers (e.g., C
 optional_question = st.text_input("Extra/Optional: You can ask a unique question here", key="optional_question")
 
 # ✅ **Clear Button**
-st.button("Clear", on_click=clear_inputs)
+if st.button("Clear All Inputs"):
+    clear_inputs()
 
+# ✅ **Function to Clean Responses**
+def clean_answer(answer):
+    """Removes unwanted formatting and conclusion-like statements."""
+    answer = re.sub(r'\*\*(.*?)\*\*', r'\1', answer)  # Remove markdown bold (`**`)
 
+    patterns = [
+        r'\b(Overall,|In conclusion,|Conclusion:|To summarize,|Thus,|Therefore,|Finally|By leveraging|By implementing).*',
+        r'.*\b(enhancing|improving|achieving|helping to ensure|ensuring).*security posture.*',
+        r'.*\b(this leads to|this results in|which results in|thereby improving|thus ensuring).*'
+    ]
+    
+    for pattern in patterns:
+        answer = re.sub(pattern, '', answer, flags=re.IGNORECASE | re.DOTALL).strip()
+
+    return answer
+
+# **Submit Button Logic**
+if st.button("Submit"):
+    responses = []
+
+    if optional_question:
+        # Single question processing
+        st.info(f"Generating answer for: {optional_question}")
+
+        prompt = (
+            f"You are an expert in Skyhigh Security products. Provide a detailed, precise, and technical response. "
+            f"Do NOT include introductions, disclaimers, conclusions, or benefits.\n\n"
+            f"### Question:\n{optional_question}\n\n"
+            f"### Direct Technical Answer:"
+        )
+
+        response = openai.ChatCompletion.create(
+            model=selected_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+            temperature=0.1
+        )
+
+        answer = clean_answer(response.choices[0].message.content.strip())
+
+        if not answer or "I don't know" in answer or "as an AI" in answer:
+            answer = "⚠ No specific answer was found. Please refine your question."
+
+        # ✅ Elegant UI for answer display
+        st.markdown(f"""
+            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
+                <h4 style="color: #F5A623;">{optional_question}</h4>
+                <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
+            </div><br>
+        """, unsafe_allow_html=True)
+
+    elif customer_name and uploaded_file and column_location:
+        try:
+            df = pd.read_excel(uploaded_file, engine="openpyxl") if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+            question_index = ord(column_location.strip().upper()) - ord('A')
+            questions = df.iloc[:, question_index].dropna().tolist()
+
+            for idx, question in enumerate(questions, 1):
+                prompt = f"{customer_name} is requesting:\n{question}\n\nProvide a highly detailed technical response:"
+
+                response = openai.ChatCompletion.create(
+                    model=selected_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=800,
+                    temperature=0.1
+                )
+
+                answer = clean_answer(response.choices[0].message.content.strip())
+
+                responses.append(answer)
+
+                st.markdown(f"""
+                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
+                        <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
+                        <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
+                    </div><br>
+                """, unsafe_allow_html=True)
+
+            # ✅ Provide Download Link
+            df["Answers"] = responses
+            output = BytesIO()
+            df.to_excel(output, index=False, engine="openpyxl")
+            output.seek(0)
+
+            st.download_button("📥 Download Responses", output, file_name="RFP_Responses.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
