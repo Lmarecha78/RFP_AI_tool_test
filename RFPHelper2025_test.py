@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import openai
@@ -101,23 +102,7 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ JavaScript for copying text using the **small square copy button**
-copy_script = """
-<script>
-function copyToClipboard(answerId) {
-    var text = document.getElementById(answerId).innerText;
-    navigator.clipboard.writeText(text).then(function() {
-        alert("Copied to clipboard!");
-    }, function(err) {
-        console.error("Error copying text: ", err);
-    });
-}
-</script>
-"""
-
-st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
-
-# ✅ Function to display answers in an **elegant layout with a small copy icon**
+# ✅ Function to display answers in an **elegant layout with a working copy button**
 def display_answer(question, answer, index):
     """Displays each answer with a modern UI and working copy button."""
     answer_id = f"answer_{index}"  # Unique ID for each answer
@@ -126,12 +111,10 @@ def display_answer(question, answer, index):
         <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; 
                     box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1); margin-bottom: 15px;">
             <h4 style="color: #F5A623; margin-bottom: 10px;">Q{index}: {question}</h4>
-            <pre id="{answer_id}" style="color: #FFFFFF; white-space: pre-wrap; 
-                background-color: #333333; padding: 10px; border-radius: 5px;">
-{answer}
-            </pre>
-            <button onclick="copyToClipboard('{answer_id}')" style="background-color: #F5A623; border: none; padding: 8px 12px; 
-                    border-radius: 5px; cursor: pointer; color: black; font-weight: bold;">
+            <textarea id="{answer_id}" style="width:100%; height:120px; background-color: #333; color: white; padding:10px; border-radius: 5px;">{answer}</textarea>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('{answer_id}').value)" 
+                    style="background-color: #F5A623; border: none; padding: 8px 12px; 
+                    border-radius: 5px; cursor: pointer; color: black; font-weight: bold; margin-top: 10px;">
                 📋 Copy
             </button>
         </div>
@@ -180,5 +163,3 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
-
-
