@@ -144,9 +144,15 @@ if st.button("Submit"):
         if not answer or "I don't know" in answer or "as an AI" in answer:
             answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
 
-        # ✅ Display Answer
-        st.markdown(f"**Q:** {optional_question}")
-        st.code(answer, language="markdown")
+        # ✅ Improved UI Layout for Answer
+        st.markdown(f"""
+            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
+                <h4 style="color: #F5A623;">Question: {optional_question}</h4>
+                <pre id="single_answer" style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
+                <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
+                onclick="copyToClipboard('single_answer')">📋 Copy</button>
+            </div><br>
+        """, unsafe_allow_html=True)
 
     elif uploaded_file and customer_name and column_location:  # ✅ Handles file-based questions
         try:
@@ -159,7 +165,6 @@ if st.button("Submit"):
                 st.warning("⚠ No valid questions found in the selected column. Please verify your file format and column selection.")
                 st.stop()
 
-            answers = []
             for idx, question in enumerate(questions, 1):
                 prompt = (
                     f"You are an expert in Skyhigh Security products, responding to an RFP for {customer_name}. "
@@ -179,12 +184,10 @@ if st.button("Submit"):
 
                 answer = clean_answer(response.choices[0].message.content.strip())
 
-                answers.append(answer)
-                st.markdown(f"**Q{idx}:** {question}")
-                st.code(answer, language="markdown")
+                st.markdown(f"<strong>Q{idx}: {question}</strong>", unsafe_allow_html=True)
+                st.markdown(f"<pre id='answer_{idx}'>{answer}</pre>", unsafe_allow_html=True)
+                st.markdown(f'<button onclick="copyToClipboard(\'answer_{idx}\')">📋 Copy</button>', unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
 
-    else:
-        st.error("⚠ Please upload a file or ask a single question.")
