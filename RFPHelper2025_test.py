@@ -101,13 +101,13 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ JavaScript for copying text using the **square copy button**
+# ✅ JavaScript for copying text using the **small square copy button**
 copy_script = """
 <script>
 function copyToClipboard(answerId) {
     var text = document.getElementById(answerId).innerText;
     navigator.clipboard.writeText(text).then(function() {
-        console.log("Copied: ", text);
+        alert("Copied to clipboard!");
     }, function(err) {
         console.error("Error copying text: ", err);
     });
@@ -119,7 +119,7 @@ st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
 
 # ✅ Function to display answers in an **elegant layout with a small copy icon**
 def display_answer(question, answer, index):
-    """Displays each answer with a modern UI and small copy button."""
+    """Displays each answer with a modern UI and working copy button."""
     answer_id = f"answer_{index}"  # Unique ID for each answer
 
     st.markdown(f"""
@@ -130,7 +130,8 @@ def display_answer(question, answer, index):
                 background-color: #333333; padding: 10px; border-radius: 5px;">
 {answer}
             </pre>
-            <button onclick="copyToClipboard('{answer_id}')" style="background-color: transparent; border: none; cursor: pointer;">
+            <button onclick="copyToClipboard('{answer_id}')" style="background-color: #F5A623; border: none; padding: 8px 12px; 
+                    border-radius: 5px; cursor: pointer; color: black; font-weight: bold;">
                 📋 Copy
             </button>
         </div>
