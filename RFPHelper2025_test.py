@@ -193,8 +193,8 @@ if st.session_state.correcting_question:
             save_corrections(st.session_state.corrections)
             st.success("✅ Correction saved to GitHub Gist!")
             st.session_state.correcting_question = None  # Reset correction state
-            st.experimental_rerun()
         else:
             st.error("⚠️ Correction cannot be empty.")
+
 
 
