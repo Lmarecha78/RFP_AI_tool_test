@@ -125,8 +125,29 @@ product_choice = st.selectbox(
     ]
 )
 
+# ✅ Restored UI Components
+language_choice = st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"])
 uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
-optional_question = st.text_input("Ask a unique question")
+
+# ✅ Model Selection (Restored)
+st.markdown("#### **Select Model for Answer Generation**")
+model_choice = st.radio(
+    "Choose a model:",
+    options=["GPT-4.0", "Due Diligence (Fine-Tuned)"],
+    captions=[
+        "Recommended option for most technical RFPs/RFIs.",
+        "Optimized for Due Diligence and security-related questionnaires."
+    ]
+)
+
+# Model mapping
+model_mapping = {
+    "GPT-4.0": "gpt-4-turbo",
+    "Due Diligence (Fine-Tuned)": "ft:gpt-4o-2024-08-06:personal:skyhigh-due-diligence:BClhZf1W"
+}
+selected_model = model_mapping[model_choice]
+
+optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
 
 # 🔹 Processing User Questions
 if st.button("Submit"):
@@ -147,34 +168,22 @@ if st.button("Submit"):
             st.success("✅ Retrieved from previous corrections.")
         else:
             prompt = f"Provide a technical response for {product_choice} regarding:\n\n{question}"
-            try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-4-turbo",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=800
-                )
-                answer = clean_answer(response.choices[0].message.content.strip())
-            except Exception as e:
-                st.error(f"🚨 OpenAI API Error: {e}")
-                answer = "⚠️ An error occurred while generating the response."
+            response = openai.ChatCompletion.create(
+                model=selected_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=800
+            )
+            answer = clean_answer(response.choices[0].message.content.strip())
 
-        # Show Answer
         st.markdown(f"### 📝 Response for: **{question}**")
         st.write(answer)
 
-        # ✅ Add Correction Options
-        col1, col2 = st.columns(2)
+        # ✅ Fixed Incorrect Button Behavior
+        if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
+            st.session_state.correcting_question = question
+            st.experimental_rerun()
 
-        with col1:
-            if st.button(f"👍 Correct - {question}", key=f"correct_{hash(question)}"):
-                st.success("Thank you for your feedback!")
-
-        with col2:
-            if st.button(f"👎 Incorrect - {question}", key=f"incorrect_{hash(question)}"):
-                st.session_state.correcting_question = question
-                st.rerun()
-
-# 🔹 Show correction input if a question is being corrected
+# 🔹 Show Correction Input When User Clicks Incorrect
 if st.session_state.correcting_question:
     question = st.session_state.correcting_question
     st.warning(f"📝 Provide a corrected answer for: **{question}**")
@@ -186,7 +195,8 @@ if st.session_state.correcting_question:
             save_corrections(st.session_state.corrections)
             st.success("✅ Correction saved to GitHub Gist!")
             st.session_state.correcting_question = None  # Reset correction state
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("⚠️ Correction cannot be empty.")
+
 
