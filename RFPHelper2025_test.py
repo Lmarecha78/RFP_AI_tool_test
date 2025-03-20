@@ -117,6 +117,19 @@ function copyToClipboard(answerId) {
 
 st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
 
+# ✅ Function to display answers with correct layout
+def display_answer(question, answer, index):
+    """Displays each answer with consistent formatting and a copy button."""
+    st.markdown(f"""
+    <div style="background-color: #222222; padding: 15px; border-radius: 10px; margin-bottom: 10px; color: #FFFFFF;">
+        <h4 style="color: #F5A623;">Q{index}: {question}</h4>
+        <p style="font-size: 16px;">{answer}</p>
+        <button style="background-color: #F5A623; color: black; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
+        onclick="copyToClipboard('answer_{index}')">📋 Copy</button>
+    </div>
+    <div id="answer_{index}" style="display: none;">{answer}</div>
+    """, unsafe_allow_html=True)
+
 # **Submit Button Logic**
 if st.button("Submit"):
     if optional_question:  # ✅ Handles single question input
@@ -144,15 +157,7 @@ if st.button("Submit"):
         if not answer or "I don't know" in answer or "as an AI" in answer:
             answer = "⚠ No specific answer was found for this question. Ensure the question is clearly defined and related to Skyhigh Security."
 
-        # ✅ Improved UI Layout for Answer
-        st.markdown(f"""
-            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1);">
-                <h4 style="color: #F5A623;">Question: {optional_question}</h4>
-                <pre id="single_answer" style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
-                <button style="background-color: #F5A623; color: #000000; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;"
-                onclick="copyToClipboard('single_answer')">📋 Copy</button>
-            </div><br>
-        """, unsafe_allow_html=True)
+        display_answer(optional_question, answer, "Single")
 
     elif uploaded_file and customer_name and column_location:  # ✅ Handles file-based questions
         try:
@@ -184,9 +189,7 @@ if st.button("Submit"):
 
                 answer = clean_answer(response.choices[0].message.content.strip())
 
-                st.markdown(f"<strong>Q{idx}: {question}</strong>", unsafe_allow_html=True)
-                st.markdown(f"<pre id='answer_{idx}'>{answer}</pre>", unsafe_allow_html=True)
-                st.markdown(f'<button onclick="copyToClipboard(\'answer_{idx}\')">📋 Copy</button>', unsafe_allow_html=True)
+                display_answer(question, answer, idx)
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
