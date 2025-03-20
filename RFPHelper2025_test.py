@@ -101,17 +101,40 @@ def clean_answer(answer):
 
     return answer
 
-# ✅ Function to display answers in an elegant layout + st.code() for selection
+# ✅ JavaScript function for copying text
+copy_script = """
+<script>
+function copyToClipboard(answerId) {
+    var text = document.getElementById(answerId).innerText;
+    navigator.clipboard.writeText(text).then(function() {
+        alert("Copied to clipboard!");
+    }, function(err) {
+        console.error("Error copying text: ", err);
+    });
+}
+</script>
+"""
+
+st.markdown(copy_script, unsafe_allow_html=True)  # Inject JavaScript at the top
+
+# ✅ Function to display answers in an elegant layout with a copy button
 def display_answer(question, answer, index):
-    """Displays each answer with proper formatting and st.code() for text selection and copying."""
+    """Displays each answer with a modern UI, including a copy button."""
+    answer_id = f"answer_{index}"  # Unique ID for each answer
+
     st.markdown(f"""
         <div style="background-color: #1E1E1E; padding: 20px; border-radius: 10px; 
                     box-shadow: 2px 2px 5px rgba(255, 255, 255, 0.1); margin-bottom: 15px;">
             <h4 style="color: #F5A623; margin-bottom: 10px;">Q{index}: {question}</h4>
+            <pre id="{answer_id}" style="color: #FFFFFF; white-space: pre-wrap; 
+                background-color: #333333; padding: 10px; border-radius: 5px;">
+{answer}
+            </pre>
+            <button style="background-color: #F5A623; color: #000000; border: none; 
+            padding: 5px 10px; border-radius: 5px; cursor: pointer;" 
+            onclick="copyToClipboard('{answer_id}')">📋 Copy</button>
         </div>
     """, unsafe_allow_html=True)
-    
-    st.code(answer, language="text")  # Allows text selection
 
 # **Submit Button Logic**
 if st.button("Submit"):
@@ -156,3 +179,4 @@ if st.button("Submit"):
 
         except Exception as e:
             st.error(f"Error processing file: {e}")
+
