@@ -28,7 +28,7 @@ def authenticate():
             if password_input == PASSWORD:
                 st.session_state.authenticated = True
                 st.success("✅ Authentication successful! Access granted.")
-                st.experimental_rerun()  
+                st.rerun()  # ✅ Fixed: Replaced `st.experimental_rerun()` with `st.rerun()`
             else:
                 st.error("❌ Incorrect password. Try again.")
 
