@@ -14,16 +14,13 @@ PASSWORD = "Skyhigh@2025!"  # Change this to your secure password
 
 # 🔹 Function for Authentication
 def authenticate():
-    """Check user authentication and store the result in session state."""
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
         st.title("🔒 Skyhigh Security RFP Tool")
         st.subheader("Enter Password to Access")
-
         password_input = st.text_input("Password", type="password")
-
         if st.button("Login"):
             if password_input == PASSWORD:
                 st.session_state.authenticated = True
@@ -31,7 +28,6 @@ def authenticate():
                 st.rerun()
             else:
                 st.error("❌ Incorrect password. Try again.")
-
         st.stop()
 
 # ✅ Call authentication function
@@ -60,28 +56,18 @@ def save_corrections(corrections):
     if not github_token:
         st.error("❌ GitHub Token is missing! Set it in Streamlit Cloud 'Secrets'.")
         return False
-
-    headers = {
-        "Authorization": f"token {github_token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    payload = {
-        "files": {
-            "corrections.json": {"content": json.dumps(corrections, indent=4)}
-        }
-    }
+    headers = {"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"}
+    payload = {"files": {"corrections.json": {"content": json.dumps(corrections, indent=4)}}}
     response = requests.patch(f"https://api.github.com/gists/{GITHUB_GIST_ID}", headers=headers, json=payload)
     return response.status_code == 200
 
-# 🔹 Initialize session state for corrections
+# 🔹 Initialize session state
 if "corrections" not in st.session_state:
     st.session_state.corrections = load_corrections()
-
 if "correcting_question" not in st.session_state:
-    st.session_state.correcting_question = None  # ✅ Track the question being corrected
-
+    st.session_state.correcting_question = None
 if "correction_input_visible" not in st.session_state:
-    st.session_state.correction_input_visible = False  # ✅ Track if the correction input should be shown
+    st.session_state.correction_input_visible = False
 
 # 🔹 Check API Key
 if not openai_api_key:
@@ -119,13 +105,7 @@ st.title("Skyhigh Security - RFI/RFP AI Tool")
 customer_name = st.text_input("Customer Name")
 product_choice = st.selectbox(
     "What is the elected product?",
-    [
-        "Skyhigh Security SSE",
-        "Skyhigh Security On-Premise Proxy",
-        "Skyhigh Security GAM ICAP",
-        "Skyhigh Security CASB",
-        "Skyhigh Security Cloud Proxy"
-    ]
+    ["Skyhigh Security SSE", "Skyhigh Security On-Premise Proxy", "Skyhigh Security GAM ICAP", "Skyhigh Security CASB", "Skyhigh Security Cloud Proxy"]
 )
 
 language_choice = st.selectbox("Select language", ["English", "French", "Spanish", "German", "Italian"])
@@ -200,5 +180,6 @@ if st.session_state.correction_input_visible and st.session_state.correcting_que
                 st.session_state.correction_input_visible = False
             else:
                 st.error("⚠️ Correction cannot be empty.")
+
 
 
