@@ -49,7 +49,7 @@ set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/sk
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
 # -------------------------
-# Restart logic
+# Restart logic using st.rerun()
 # -------------------------
 if "restart_flag" not in st.session_state:
     st.session_state["restart_flag"] = False
@@ -61,7 +61,7 @@ st.button("🔄 Restart", on_click=set_restart_flag)
 
 if st.session_state["restart_flag"]:
     st.session_state["restart_flag"] = False  # Reset the flag
-    st.experimental_rerun()
+    st.rerun()
 
 # -------------------------
 # User Input Fields
@@ -187,5 +187,6 @@ if st.button("Submit"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
 
