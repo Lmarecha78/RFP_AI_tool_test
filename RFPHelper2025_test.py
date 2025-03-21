@@ -162,7 +162,6 @@ if "current_user" not in st.session_state:
     st.session_state.current_user = None
 if "pending_validation" not in st.session_state:
     st.session_state.pending_validation = {}
-# We'll store the user email we want to validate in st.session_state too
 if "email_to_validate" not in st.session_state:
     st.session_state.email_to_validate = None
 
@@ -254,9 +253,15 @@ if not st.session_state.authenticated:
         if st.session_state.email_to_validate:
             with st.form("validation_form"):
                 validation_code = st.text_input("Validation Code")
-                validate_submitted = st.form_submit_button("Validate Email")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    validate_submitted = st.form_submit_button("Validate Email")
+                with col2:
+                    resend_submitted = st.form_submit_button("Resend Code")
 
             if validate_submitted:
+                # Check the typed code vs. the expected code
                 expected_code = st.session_state.pending_validation.get(st.session_state.email_to_validate)
                 if validation_code == expected_code:
                     update_verified(conn, st.session_state.email_to_validate)
@@ -269,6 +274,13 @@ if not st.session_state.authenticated:
                     st.rerun()
                 else:
                     st.error("Invalid validation code. Please try again.")
+
+            if resend_submitted:
+                # Generate and send a new code
+                new_code = generate_validation_code()
+                st.session_state.pending_validation[st.session_state.email_to_validate] = new_code
+                send_validation_email(st.session_state.email_to_validate, new_code)
+                st.info("A new validation code has been sent to your email address.")
 
     st.stop()
 
@@ -386,7 +398,6 @@ def clean_answer(answer):
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
-    # Decide which approach
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -429,7 +440,6 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
         answer = clean_answer(response.choices[0].message.content.strip())
         responses.append(answer)
 
-        # Display each question/answer
         st.markdown(f"""
             <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
                 <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
