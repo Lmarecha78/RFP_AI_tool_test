@@ -4,6 +4,148 @@ import openai
 import re
 from io import BytesIO
 import os
+import sqlite3
+from sqlite3 import Error
+
+# =============================================================================
+# DATABASE HELPER FUNCTIONS (Persistent Storage for Users)
+# =============================================================================
+DB_FILE = "users.db"
+
+def create_connection(db_file):
+    """Create a database connection to the SQLite database specified by db_file."""
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file, check_same_thread=False)
+    except Error as e:
+        st.error(f"Error connecting to database: {e}")
+    return conn
+
+def create_table(conn):
+    """Create the users table if it doesn't exist."""
+    try:
+        sql_create_users_table = """ 
+        CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            password TEXT NOT NULL
+        );
+        """
+        cur = conn.cursor()
+        cur.execute(sql_create_users_table)
+        conn.commit()
+    except Error as e:
+        st.error(f"Error creating table: {e}")
+
+def add_user(conn, email, first_name, last_name, password):
+    """Add a new user to the users table."""
+    try:
+        sql = """INSERT INTO users(email, first_name, last_name, password)
+                 VALUES(?,?,?,?)"""
+        cur = conn.cursor()
+        cur.execute(sql, (email, first_name, last_name, password))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        # Email already registered.
+        return False
+    except Error as e:
+        st.error(f"Error adding user: {e}")
+        return False
+
+def authenticate_user(conn, email, password):
+    """Check if the provided email and password match a user."""
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE email=? AND password=?", (email, password))
+        row = cur.fetchone()
+        return row is not None
+    except Error as e:
+        st.error(f"Error during authentication: {e}")
+        return False
+
+def get_user(conn, email):
+    """Retrieve user data for the given email."""
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE email=?", (email,))
+        return cur.fetchone()
+    except Error as e:
+        st.error(f"Error retrieving user: {e}")
+        return None
+
+# =============================================================================
+# SETUP DATABASE
+# =============================================================================
+conn = create_connection(DB_FILE)
+create_table(conn)
+
+# =============================================================================
+# SESSION STATE FOR AUTHENTICATION
+# =============================================================================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+
+# =============================================================================
+# AUTHENTICATION PAGE
+# =============================================================================
+if not st.session_state.authenticated:
+    st.title("Authentication")
+    auth_mode = st.radio("Select Mode", ["Login", "Register"], key="auth_mode")
+    
+    if auth_mode == "Register":
+        st.subheader("Register")
+        with st.form("registration_form"):
+            first_name = st.text_input("First Name")
+            last_name = st.text_input("Last Name")
+            email = st.text_input("Corporate Email (must be @skyhighsecurity.com)")
+            password = st.text_input("Password", type="password")
+            reg_submitted = st.form_submit_button("Register")
+            if reg_submitted:
+                # Validate corporate email.
+                if not email.lower().endswith("@skyhighsecurity.com"):
+                    st.error("Please provide a corporate email address ending with @skyhighsecurity.com.")
+                elif not (first_name and last_name and password):
+                    st.error("Please fill in all the fields.")
+                else:
+                    success = add_user(conn, email, first_name, last_name, password)
+                    if success:
+                        st.success("Registration successful! Please switch to the Login tab.")
+                    else:
+                        st.error("This email is already registered. Please login.")
+    else:
+        st.subheader("Login")
+        with st.form("login_form"):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            login_submitted = st.form_submit_button("Login")
+            if login_submitted:
+                if authenticate_user(conn, email, password):
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = email
+                    st.success("Login successful!")
+                    st.experimental_rerun()  # Refresh the app to show the main content.
+                else:
+                    st.error("Invalid email or password.")
+    
+    st.stop()
+
+# =============================================================================
+# MAIN APP PAGE (AFTER AUTHENTICATION)
+# =============================================================================
+user = get_user(conn, st.session_state.current_user)
+st.title("Welcome to the Skyhigh Security App")
+if user:
+    st.write(f"Hello, {user[1]} {user[2]}!")
+else:
+    st.write("User data not found.")
+
+# =============================================================================
+# THE RFI/RFP TOOL CODE (WITH DYNAMIC UI AND DISABLE LOGIC)
+# =============================================================================
 
 # ------------------------------------------------------------------------------
 # INITIALIZE/DYNAMIC UI VERSION FOR WIDGET KEYS
@@ -15,46 +157,20 @@ def restart_ui():
     st.session_state.ui_version += 1
 
 # ------------------------------------------------------------------------------
-# STREAMLIT PAGE SETUP
+# STREAMLIT PAGE SETUP (for the RFI/RFP tool)
 # ------------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Skyhigh Security",
-    page_icon="🔒",
-    layout="wide"
-)
+st.markdown("---")  # Separator
+st.header("Skyhigh Security - RFI/RFP AI Tool")
 
 # ------------------------------------------------------------------------------
-# OPENAI API KEY SETUP
+# OPENAI API KEY SETUP (already done above, so this part uses the global openai.api_key)
 # ------------------------------------------------------------------------------
-openai_api_key = st.secrets.get("OPENAI_API_KEY")
-if not openai_api_key:
-    st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
-else:
-    openai.api_key = openai_api_key
+# (openai.api_key was already set in the authentication section.)
 
 # ------------------------------------------------------------------------------
-# SET BACKGROUND IMAGE
+# SET BACKGROUND IMAGE (Optional: already set globally above)
 # ------------------------------------------------------------------------------
-def set_background(image_url):
-    css = f"""
-    <style>
-    .stApp {{
-        background-image: url("{image_url}");
-        background-size: cover;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-attachment: fixed;
-    }}
-    </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
-
-set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
-
-# ------------------------------------------------------------------------------
-# BRANDING AND TITLE
-# ------------------------------------------------------------------------------
-st.title("Skyhigh Security - RFI/RFP AI Tool")
+# (We reuse the same background already set.)
 
 # ------------------------------------------------------------------------------
 # RESTART BUTTON (using dynamic ui_version)
@@ -64,16 +180,13 @@ st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", o
 # ------------------------------------------------------------------------------
 # READ CURRENT VALUES FROM SESSION STATE (for disable logic)
 # ------------------------------------------------------------------------------
-# Use the dynamic keys to look up current values; if not set, default to empty.
 customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
 uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
 unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
 # Determine disabling logic:
-# - If any multi-question field is non-empty, disable unique question.
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
-# - If unique question is non-empty, disable multi-question fields.
 disable_multi = bool(unique_question_val)
 
 # ------------------------------------------------------------------------------
@@ -193,5 +306,6 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
 
