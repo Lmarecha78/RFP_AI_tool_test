@@ -6,19 +6,13 @@ from io import BytesIO
 import os
 
 # ------------------------------------------------------------------------------
-# RESTART LOGIC (working method)
+# INITIALIZE/DYNAMIC UI VERSION FOR WIDGET KEYS
 # ------------------------------------------------------------------------------
-# If the restart_flag exists and is True, clear session state and immediately rerun.
-if "restart_flag" in st.session_state and st.session_state.restart_flag:
-    st.session_state.clear()
-    st.rerun()
+if "ui_version" not in st.session_state:
+    st.session_state.ui_version = 0
 
-# Initialize restart_flag if not present.
-if "restart_flag" not in st.session_state:
-    st.session_state.restart_flag = False
-
-def trigger_restart():
-    st.session_state.restart_flag = True
+def restart_ui():
+    st.session_state.ui_version += 1
 
 # ------------------------------------------------------------------------------
 # STREAMLIT PAGE SETUP
@@ -63,52 +57,50 @@ set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/sk
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
 # ------------------------------------------------------------------------------
-# RESTART BUTTON
+# RESTART BUTTON (using dynamic ui_version)
 # ------------------------------------------------------------------------------
-st.button("🔄 Restart", key="restart_button", on_click=trigger_restart)
+st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", on_click=restart_ui)
 
 # ------------------------------------------------------------------------------
-# READ CURRENT VALUES FROM SESSION STATE
+# READ CURRENT VALUES FROM SESSION STATE (for disable logic)
 # ------------------------------------------------------------------------------
-# (These keys are used by the input widgets below.)
-customer_name_val = st.session_state.get("customer_name", "").strip()
-uploaded_file_val = st.session_state.get("uploaded_file", None)
-column_location_val = st.session_state.get("column_location", "").strip()
-unique_question_val = st.session_state.get("unique_question", "").strip()
+# Use the dynamic keys to look up current values; if not set, default to empty.
+customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
+uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
+column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
+unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
-# ------------------------------------------------------------------------------
-# DETERMINE WHICH FIELDS SHOULD BE DISABLED
-# ------------------------------------------------------------------------------
-# If any multi-question field is non-empty, disable the unique question.
+# Determine disabling logic:
+# - If any multi-question field is non-empty, disable unique question.
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
-# If the unique question field is non-empty, disable the multi-question fields.
+# - If unique question is non-empty, disable multi-question fields.
 disable_multi = bool(unique_question_val)
 
 # ------------------------------------------------------------------------------
-# USER INPUT FIELDS WITH DISTINCT KEYS
+# USER INPUT FIELDS (with dynamic keys)
 # ------------------------------------------------------------------------------
 customer_name = st.text_input(
     "Customer Name",
-    key="customer_name",
+    key=f"customer_name_{st.session_state.ui_version}",
     disabled=disable_multi
 )
 
 uploaded_file = st.file_uploader(
     "Upload a CSV or XLS file",
     type=["csv", "xls", "xlsx"],
-    key="uploaded_file",
+    key=f"uploaded_file_{st.session_state.ui_version}",
     disabled=disable_multi
 )
 
 column_location = st.text_input(
     "Specify the location of the questions (e.g., B for column B)",
-    key="column_location",
+    key=f"column_location_{st.session_state.ui_version}",
     disabled=disable_multi
 )
 
 unique_question = st.text_input(
     "Extra/Optional: You can ask a unique question here",
-    key="unique_question",
+    key=f"unique_question_{st.session_state.ui_version}",
     disabled=disable_unique
 )
 
@@ -135,20 +127,19 @@ selected_model = model_mapping[model_choice]
 # CLEAN ANSWER FUNCTION
 # ------------------------------------------------------------------------------
 def clean_answer(answer):
-    """Remove markdown bold formatting from the answer."""
+    """Remove markdown bold formatting."""
     return re.sub(r'\*\*(.*?)\*\*', r'\1', answer).strip()
 
 # ------------------------------------------------------------------------------
 # SUBMIT BUTTON LOGIC
 # ------------------------------------------------------------------------------
-if st.button("Submit", key="submit_button"):
+if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
     # CASE 1: Unique question approach
     if unique_question:
         questions = [unique_question]
-
-    # CASE 2: Multi-question approach
+    # CASE 2: Multi-question approach (requires all three fields)
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
@@ -166,7 +157,6 @@ if st.button("Submit", key="submit_button"):
 
     st.success(f"Processing {len(questions)} question(s)...")
 
-    # Generate answers for each question
     for idx, question in enumerate(questions, 1):
         prompt = (
             "You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
@@ -197,7 +187,6 @@ if st.button("Submit", key="submit_button"):
             </div><br>
         """, unsafe_allow_html=True)
 
-    # If questions were loaded from a file, allow downloading the responses.
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
