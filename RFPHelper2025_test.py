@@ -155,7 +155,7 @@ if not st.session_state.authenticated:
                     st.session_state.authenticated = True
                     st.session_state.current_user = email
                     st.success("Login successful!")
-                    st.rerun()  # Refresh using st.rerun() since experimental_rerun is unavailable
+                    st.rerun()  # Refresh the app to show the main content.
                 else:
                     st.error("Invalid email or password.")
     
@@ -167,6 +167,12 @@ if not st.session_state.authenticated:
 
 # Re-apply the background image for the main app.
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
+
+# Add a "Log off" button at the top-right (or where preferred)
+if st.button("Log off", key="logoff_button"):
+    st.session_state.authenticated = False
+    st.session_state.current_user = None
+    st.rerun()
 
 user = get_user(conn, st.session_state.current_user)
 st.title("Welcome to the Skyhigh Security App")
