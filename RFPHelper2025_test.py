@@ -91,6 +91,20 @@ def get_user(conn, email):
         return None
 
 # =============================================================================
+# Helper: Delete an Existing User (for testing purposes)
+# =============================================================================
+def delete_user(conn, email):
+    """Delete a user from the users table by email."""
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM users WHERE email=?", (email,))
+        conn.commit()
+        return True
+    except Error as e:
+        st.error(f"Error deleting user: {e}")
+        return False
+
+# =============================================================================
 # EMAIL SENDING FUNCTION (Using Exchange Online with secrets)
 # =============================================================================
 def send_validation_email(receiver_email, validation_code):
@@ -133,6 +147,13 @@ def generate_validation_code(length=6):
 # =============================================================================
 conn = create_connection(DB_FILE)
 create_table(conn)
+
+# =============================================================================
+# Uncomment the following lines for testing to delete an existing user:
+# test_email = "testuser@skyhighsecurity.com"
+# if delete_user(conn, test_email):
+#     st.write(f"User {test_email} has been removed from the database.")
+# =============================================================================
 
 # =============================================================================
 # SESSION STATE FOR AUTHENTICATION AND VALIDATION
@@ -178,7 +199,6 @@ if not st.session_state.authenticated:
     auth_mode = st.radio("Select Mode", ["Login", "Register"], key="auth_mode")
     
     if auth_mode == "Register":
-        # ---------------------- REGISTER FORM ----------------------
         st.subheader("Register")
         with st.form("registration_form"):
             first_name = st.text_input("First Name")
@@ -186,75 +206,62 @@ if not st.session_state.authenticated:
             email = st.text_input("Corporate Email (must be @skyhighsecurity.com)")
             password = st.text_input("Password", type="password")
             reg_submitted = st.form_submit_button("Register")
-
-        if reg_submitted:
-            if not email.lower().endswith("@skyhighsecurity.com"):
-                st.error("Please provide a corporate email address ending with @skyhighsecurity.com.")
-            elif not (first_name and last_name and password):
-                st.error("Please fill in all the fields.")
-            else:
-                success = add_user(conn, email, first_name, last_name, password)
-                if success:
-                    code = generate_validation_code()
-                    st.session_state.pending_validation[email] = code
-                    send_validation_email(email, code)
-                    st.success("Registration successful!")
-                    st.info("Please proceed to login and validate your email before accessing the app.")
+            if reg_submitted:
+                if not email.lower().endswith("@skyhighsecurity.com"):
+                    st.error("Please provide a corporate email address ending with @skyhighsecurity.com.")
+                elif not (first_name and last_name and password):
+                    st.error("Please fill in all the fields.")
                 else:
-                    st.error("This email is already registered. Please login.")
-
+                    success = add_user(conn, email, first_name, last_name, password)
+                    if success:
+                        # Generate validation code, store it, and send the email.
+                        code = generate_validation_code()
+                        st.session_state.pending_validation[email] = code
+                        send_validation_email(email, code)
+                        st.success("Registration successful!")
+                        st.info("Please proceed to login and validate your email before accessing the app.")
+                    else:
+                        st.error("This email is already registered. Please login.")
     else:
-        # ---------------------- LOGIN FORM ----------------------
         st.subheader("Login")
         with st.form("login_form"):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
             login_submitted = st.form_submit_button("Login")
-
-        # Process the login form after it closes
         if login_submitted:
             if authenticate_user(conn, email, password):
                 user = get_user(conn, email)
-                if user:
-                    # user[4] is the 'verified' column
-                    if user[4] == 1:
-                        # Verified user
-                        st.session_state.authenticated = True
-                        st.session_state.current_user = email
-                        st.success("Login successful!")
-                        st.rerun()
-                    else:
-                        # Not verified, show a separate validation code form
-                        st.error("Your email is not validated. Please enter your validation code below.")
-
-                        # Validation form (separate from login form)
-                        with st.form("validation_form"):
-                            validation_code = st.text_input("Validation Code")
-                            validate_submitted = st.form_submit_button("Validate Email")
-
-                        if validate_submitted:
-                            expected_code = st.session_state.pending_validation.get(email)
-                            if validation_code == expected_code:
-                                update_verified(conn, email)
-                                st.session_state.authenticated = True
-                                st.session_state.current_user = email
-                                st.success("Email validated and login successful!")
-                                st.session_state.pending_validation.pop(email, None)
-                                st.rerun()
-                            else:
-                                st.error("Invalid validation code. Please try again.")
+                # Check if the email is verified
+                if user and user[4] == 1:
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = email
+                    st.success("Login successful!")
+                    st.rerun()  # Refresh the app to show main content.
                 else:
-                    st.error("User not found in the database.")
+                    st.error("Your email is not validated. Please enter your validation code below.")
+                    with st.form("validation_form"):
+                        validation_code = st.text_input("Validation Code")
+                        validate_submitted = st.form_submit_button("Validate Email")
+                    if validate_submitted:
+                        expected_code = st.session_state.pending_validation.get(email)
+                        if validation_code == expected_code:
+                            update_verified(conn, email)
+                            st.session_state.authenticated = True
+                            st.session_state.current_user = email
+                            st.success("Email validated and login successful!")
+                            st.session_state.pending_validation.pop(email, None)
+                            st.rerun()
+                        else:
+                            st.error("Invalid validation code. Please try again.")
             else:
                 st.error("Invalid email or password.")
-
+    
     st.stop()
 
 # =============================================================================
 # MAIN APP PAGE (AFTER AUTHENTICATION)
 # =============================================================================
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
-
 # Log off button.
 if st.button("Log off", key="logoff_button"):
     st.session_state.authenticated = False
@@ -363,10 +370,8 @@ def clean_answer(answer):
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
-    # If the unique question is filled, that's the single question approach
     if unique_question:
         questions = [unique_question]
-    # Otherwise, check if all multi-question fields are present
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
@@ -414,7 +419,6 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             </div><br>
         """, unsafe_allow_html=True)
 
-    # If we processed from a file, allow download of updated file
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
