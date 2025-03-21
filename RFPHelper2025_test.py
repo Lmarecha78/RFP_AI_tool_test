@@ -62,7 +62,7 @@ st.title("Skyhigh Security - RFI/RFP AI Tool")
 # Restart Button
 # Instead of clearing session state, we just increment ui_version.
 # ------------------------------------------------------------------------------
-st.button("🔄 Restart", key="restart_button", on_click=increment_ui_version)
+st.button("🔄 Clear & Restart", key="restart_button", on_click=increment_ui_version)
 
 # ------------------------------------------------------------------------------
 # Dynamic Keys for All Inputs
