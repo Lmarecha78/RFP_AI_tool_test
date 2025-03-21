@@ -85,7 +85,7 @@ optional_question = st.text_input("Extra/Optional: You can ask a unique question
 # Restart Button
 def restart_app():
     st.session_state.clear()
-    st.experimental_rerun()
+    st.rerun()
 st.button("🔄 Restart", on_click=restart_app)
 
 # ✅ Function to clean answers (Removes any conclusion, benefits, markdown formatting)
