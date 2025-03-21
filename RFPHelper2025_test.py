@@ -6,6 +6,11 @@ from io import BytesIO
 import os
 import sqlite3
 from sqlite3 import Error
+import random
+import string
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # =============================================================================
 # DATABASE HELPER FUNCTIONS (Persistent Storage for Users)
@@ -22,14 +27,15 @@ def create_connection(db_file):
     return conn
 
 def create_table(conn):
-    """Create the users table if it doesn't exist."""
+    """Create the users table if it doesn't exist (with a verified column)."""
     try:
         sql_create_users_table = """ 
         CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY,
             first_name TEXT NOT NULL,
             last_name TEXT NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            verified INTEGER DEFAULT 0
         );
         """
         cur = conn.cursor()
@@ -39,10 +45,10 @@ def create_table(conn):
         st.error(f"Error creating table: {e}")
 
 def add_user(conn, email, first_name, last_name, password):
-    """Add a new user to the users table."""
+    """Add a new user to the users table with verified set to 0."""
     try:
-        sql = """INSERT INTO users(email, first_name, last_name, password)
-                 VALUES(?,?,?,?)"""
+        sql = """INSERT INTO users(email, first_name, last_name, password, verified)
+                 VALUES(?,?,?,?,0)"""
         cur = conn.cursor()
         cur.execute(sql, (email, first_name, last_name, password))
         conn.commit()
@@ -53,6 +59,15 @@ def add_user(conn, email, first_name, last_name, password):
     except Error as e:
         st.error(f"Error adding user: {e}")
         return False
+
+def update_verified(conn, email):
+    """Set the verified flag to 1 for the given user."""
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET verified=1 WHERE email=?", (email,))
+        conn.commit()
+    except Error as e:
+        st.error(f"Error updating verification status: {e}")
 
 def authenticate_user(conn, email, password):
     """Check if the provided email and password match a user."""
@@ -76,13 +91,61 @@ def get_user(conn, email):
         return None
 
 # =============================================================================
+# EMAIL SENDING FUNCTION (Using Exchange Online with secrets)
+# =============================================================================
+def send_validation_email(receiver_email, validation_code):
+    smtp_server = st.secrets["exchange"]["smtp_server"]
+    port = st.secrets["exchange"]["port"]
+    sender_email = st.secrets["exchange"]["sender_email"]
+    password = st.secrets["exchange"]["password"]
+    
+    subject = 'Your Email Validation Code'
+    body = f"""Hello,
+
+Your email validation code is: {validation_code}
+
+Thank you!
+"""
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = receiver_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    
+    try:
+        server = smtplib.SMTP(smtp_server, port)
+        server.starttls()  # Secure the connection
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
+        server.quit()
+        st.info("Validation email sent successfully!")
+    except Exception as e:
+        st.error(f"Error sending email: {e}")
+
+# =============================================================================
+# Helper: Generate a random validation code
+# =============================================================================
+def generate_validation_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+# =============================================================================
 # SETUP DATABASE
 # =============================================================================
 conn = create_connection(DB_FILE)
 create_table(conn)
 
 # =============================================================================
-# SET PAGE CONFIGURATION
+# SESSION STATE FOR AUTHENTICATION AND VALIDATION
+# =============================================================================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+if "pending_validation" not in st.session_state:
+    st.session_state.pending_validation = {}
+
+# =============================================================================
+# SET PAGE CONFIGURATION & BACKGROUND
 # =============================================================================
 st.set_page_config(
     page_title="Skyhigh Security",
@@ -90,9 +153,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# =============================================================================
-# BACKGROUND IMAGE FUNCTION
-# =============================================================================
 def set_background(image_url):
     css = f"""
     <style>
@@ -107,16 +167,8 @@ def set_background(image_url):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# Set the background image for the auth page.
+# Set the background image (applies for both auth and main app)
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
-
-# =============================================================================
-# SESSION STATE FOR AUTHENTICATION
-# =============================================================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "current_user" not in st.session_state:
-    st.session_state.current_user = None
 
 # =============================================================================
 # AUTHENTICATION PAGE
@@ -141,7 +193,12 @@ if not st.session_state.authenticated:
                 else:
                     success = add_user(conn, email, first_name, last_name, password)
                     if success:
-                        st.success("Registration successful! Please switch to the Login tab.")
+                        # Generate validation code, store it, and send the email.
+                        code = generate_validation_code()
+                        st.session_state.pending_validation[email] = code
+                        send_validation_email(email, code)
+                        st.success("Registration successful!")
+                        st.info("Please proceed to login and validate your email before accessing the app.")
                     else:
                         st.error("This email is already registered. Please login.")
     else:
@@ -152,10 +209,29 @@ if not st.session_state.authenticated:
             login_submitted = st.form_submit_button("Login")
             if login_submitted:
                 if authenticate_user(conn, email, password):
-                    st.session_state.authenticated = True
-                    st.session_state.current_user = email
-                    st.success("Login successful!")
-                    st.rerun()  # Refresh the app to show the main content.
+                    user = get_user(conn, email)
+                    # Check if the email is verified
+                    if user and user[4] == 1:
+                        st.session_state.authenticated = True
+                        st.session_state.current_user = email
+                        st.success("Login successful!")
+                        st.rerun()  # Refresh the app to show main content.
+                    else:
+                        st.error("Your email is not validated. Please enter your validation code below.")
+                        with st.form("validation_form"):
+                            validation_code = st.text_input("Validation Code")
+                            validate_submitted = st.form_submit_button("Validate Email")
+                            if validate_submitted:
+                                expected_code = st.session_state.pending_validation.get(email)
+                                if validation_code == expected_code:
+                                    update_verified(conn, email)
+                                    st.session_state.authenticated = True
+                                    st.session_state.current_user = email
+                                    st.success("Email validated and login successful!")
+                                    st.session_state.pending_validation.pop(email, None)
+                                    st.rerun()
+                                else:
+                                    st.error("Invalid validation code. Please try again.")
                 else:
                     st.error("Invalid email or password.")
     
@@ -164,11 +240,8 @@ if not st.session_state.authenticated:
 # =============================================================================
 # MAIN APP PAGE (AFTER AUTHENTICATION)
 # =============================================================================
-
-# Re-apply the background image for the main app.
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
-
-# Add a "Log off" button at the top-right (or where preferred)
+# Log off button.
 if st.button("Log off", key="logoff_button"):
     st.session_state.authenticated = False
     st.session_state.current_user = None
@@ -213,7 +286,6 @@ uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_ve
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
 unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
-# Determine disabling logic:
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
 disable_multi = bool(unique_question_val)
 
@@ -277,10 +349,8 @@ def clean_answer(answer):
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
-    # CASE 1: Unique question approach
     if unique_question:
         questions = [unique_question]
-    # CASE 2: Multi-question approach (requires all three fields)
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
