@@ -6,6 +6,21 @@ from io import BytesIO
 import os
 
 # -------------------------
+# Session State Restart Check
+# -------------------------
+# If restart_flag exists and is True, clear session state and rerun before building the UI.
+if "restart_flag" in st.session_state and st.session_state.restart_flag:
+    st.session_state.clear()
+    st.rerun()
+
+# Initialize restart_flag if it doesn't exist.
+if "restart_flag" not in st.session_state:
+    st.session_state.restart_flag = False
+
+def trigger_restart():
+    st.session_state.restart_flag = True
+
+# -------------------------
 # Streamlit page setup
 # -------------------------
 st.set_page_config(
@@ -15,25 +30,9 @@ st.set_page_config(
 )
 
 # -------------------------
-# Restart logic
-# -------------------------
-# 1. If restart_flag exists and is True, clear session state and rerun immediately
-if "restart_flag" in st.session_state and st.session_state.restart_flag:
-    st.session_state.clear()
-    st.rerun()
-
-# 2. Otherwise, ensure the flag exists in session state
-if "restart_flag" not in st.session_state:
-    st.session_state.restart_flag = False
-
-def set_restart_flag():
-    st.session_state.restart_flag = True
-
-# -------------------------
 # OpenAI API Key Setup
 # -------------------------
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
-
 if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
 else:
@@ -64,15 +63,14 @@ set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/sk
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
 # -------------------------
-# Restart Button (unique key)
+# Restart Button (with unique key)
 # -------------------------
-st.button("🔄 Restart", key="restart_button", on_click=set_restart_flag)
+st.button("🔄 Restart", key="restart_button", on_click=trigger_restart)
 
 # -------------------------
 # User Input Fields
 # -------------------------
 customer_name = st.text_input("Customer Name")
-
 product_choice = st.selectbox(
     "What is the elected product?",
     [
@@ -83,12 +81,10 @@ product_choice = st.selectbox(
         "Skyhigh Security Cloud Proxy"
     ]
 )
-
 language_choice = st.selectbox(
     "Select language",
     ["English", "French", "Spanish", "German", "Italian"]
 )
-
 uploaded_file = st.file_uploader("Upload a CSV or XLS file", type=["csv", "xls", "xlsx"])
 
 # **Model Selection**
@@ -101,7 +97,6 @@ model_choice = st.radio(
         "Optimized for Due Diligence and security-related questionnaires."
     ]
 )
-
 # Model mapping
 model_mapping = {
     "GPT-4.0": "gpt-4-turbo",
@@ -124,7 +119,7 @@ def clean_answer(answer):
     return answer.strip()
 
 # -------------------------
-# Submit Button Logic (unique key)
+# Submit Button Logic (with unique key)
 # -------------------------
 if st.button("Submit", key="submit_button"):
     responses = []
@@ -132,21 +127,18 @@ if st.button("Submit", key="submit_button"):
     # Case 1: Optional single question
     if optional_question:
         questions = [optional_question]
-
-    # Case 2: Multiple questions from uploaded file
+    # Case 2: Multiple questions from uploaded file (and customer name + column location provided)
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file, engine="openpyxl")
-            
             question_index = ord(column_location.strip().upper()) - ord('A')
             questions = df.iloc[:, question_index].dropna().tolist()
         except Exception as e:
             st.error(f"Error processing file: {e}")
             st.stop()
-
     else:
         st.warning("Please provide either an optional question or upload a file with questions.")
         st.stop()
@@ -185,11 +177,12 @@ if st.button("Submit", key="submit_button"):
             </div><br>
         """, unsafe_allow_html=True)
 
-    # If we processed from a file, allow download of updated file
+    # If we processed from a file, allow download of the updated file
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
