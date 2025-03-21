@@ -6,19 +6,18 @@ from io import BytesIO
 import os
 
 # ------------------------------------------------------------------------------
-# RESTART LOGIC
+# RESTART LOGIC (working method)
 # ------------------------------------------------------------------------------
-# 1) If restart_flag is True, clear session and rerun before building the UI
+# If the restart_flag exists and is True, clear session state and immediately rerun.
 if "restart_flag" in st.session_state and st.session_state.restart_flag:
     st.session_state.clear()
     st.rerun()
 
-# 2) Initialize restart_flag if not present
+# Initialize restart_flag if not present.
 if "restart_flag" not in st.session_state:
     st.session_state.restart_flag = False
 
 def trigger_restart():
-    """Callback to set the restart_flag and force a clean slate."""
     st.session_state.restart_flag = True
 
 # ------------------------------------------------------------------------------
@@ -69,24 +68,24 @@ st.title("Skyhigh Security - RFI/RFP AI Tool")
 st.button("🔄 Restart", key="restart_button", on_click=trigger_restart)
 
 # ------------------------------------------------------------------------------
-# DETECT WHICH FIELDS ARE FILLED (FOR DISABLING LOGIC)
+# READ CURRENT VALUES FROM SESSION STATE
 # ------------------------------------------------------------------------------
-# We look at session_state keys so we can see what's currently filled.
-unique_question_val = st.session_state.get("unique_question", "").strip()
+# (These keys are used by the input widgets below.)
 customer_name_val = st.session_state.get("customer_name", "").strip()
 uploaded_file_val = st.session_state.get("uploaded_file", None)
 column_location_val = st.session_state.get("column_location", "").strip()
-
-# 1) If the unique question is filled, we disable the multi-question fields.
-unique_question_filled = bool(unique_question_val)
-disable_multi = unique_question_filled
-
-# 2) If any multi-question field is filled, we disable the unique question.
-multi_question_filled = bool(customer_name_val or uploaded_file_val or column_location_val)
-disable_unique = multi_question_filled
+unique_question_val = st.session_state.get("unique_question", "").strip()
 
 # ------------------------------------------------------------------------------
-# USER INPUT FIELDS (WITH DISABLE LOGIC)
+# DETERMINE WHICH FIELDS SHOULD BE DISABLED
+# ------------------------------------------------------------------------------
+# If any multi-question field is non-empty, disable the unique question.
+disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
+# If the unique question field is non-empty, disable the multi-question fields.
+disable_multi = bool(unique_question_val)
+
+# ------------------------------------------------------------------------------
+# USER INPUT FIELDS WITH DISTINCT KEYS
 # ------------------------------------------------------------------------------
 customer_name = st.text_input(
     "Customer Name",
@@ -136,12 +135,8 @@ selected_model = model_mapping[model_choice]
 # CLEAN ANSWER FUNCTION
 # ------------------------------------------------------------------------------
 def clean_answer(answer):
-    """
-    Removes unwanted formatting and conclusion-like statements.
-    Currently, we only remove markdown bold. You can add more filters if needed.
-    """
-    answer = re.sub(r'\*\*(.*?)\*\*', r'\1', answer)  # Remove markdown bold (`**`)
-    return answer.strip()
+    """Remove markdown bold formatting from the answer."""
+    return re.sub(r'\*\*(.*?)\*\*', r'\1', answer).strip()
 
 # ------------------------------------------------------------------------------
 # SUBMIT BUTTON LOGIC
@@ -149,25 +144,24 @@ def clean_answer(answer):
 if st.button("Submit", key="submit_button"):
     responses = []
 
-    # --- CASE 1: Unique question approach
+    # CASE 1: Unique question approach
     if unique_question:
         questions = [unique_question]
 
-    # --- CASE 2: Multi-question approach
+    # CASE 2: Multi-question approach
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file, engine="openpyxl")
-
             question_index = ord(column_location.strip().upper()) - ord('A')
             questions = df.iloc[:, question_index].dropna().tolist()
         except Exception as e:
             st.error(f"Error processing file: {e}")
             st.stop()
     else:
-        st.warning("Please provide either a single unique question OR the multi-question fields (Customer Name, File, and Column).")
+        st.warning("Please provide either a unique question OR all of the multi-question fields (Customer Name, File, and Column).")
         st.stop()
 
     st.success(f"Processing {len(questions)} question(s)...")
@@ -196,7 +190,6 @@ if st.button("Submit", key="submit_button"):
         answer = clean_answer(response.choices[0].message.content.strip())
         responses.append(answer)
 
-        # Display each question/answer in an elegant way
         st.markdown(f"""
             <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
                 <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
@@ -204,11 +197,12 @@ if st.button("Submit", key="submit_button"):
             </div><br>
         """, unsafe_allow_html=True)
 
-    # If we processed from a file, allow download of updated file
+    # If questions were loaded from a file, allow downloading the responses.
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
