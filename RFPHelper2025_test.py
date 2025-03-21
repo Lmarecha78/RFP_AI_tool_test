@@ -82,6 +82,11 @@ selected_model = model_mapping[model_choice]
 column_location = st.text_input("Specify the location of the questions (e.g., B for column B)")
 optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
 
+# Restart Button
+def restart_app():
+    st.experimental_rerun()
+st.button("🔄 Restart", on_click=restart_app)
+
 # ✅ Function to clean answers (Removes any conclusion, benefits, markdown formatting)
 def clean_answer(answer):
     """Removes unwanted formatting and conclusion-like statements."""
@@ -90,9 +95,28 @@ def clean_answer(answer):
 
 # **Submit Button Logic**
 if st.button("Submit"):
+    responses = []
     if optional_question:
-        st.info(f"Generating answer for: {optional_question}")
+        questions = [optional_question]
+    elif customer_name and uploaded_file and column_location:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file, engine="openpyxl")
+            
+            question_index = ord(column_location.strip().upper()) - ord('A')
+            questions = df.iloc[:, question_index].dropna().tolist()
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+            st.stop()
+    else:
+        st.warning("Please provide either an optional question or upload a file with questions.")
+        st.stop()
 
+    st.success(f"Processing {len(questions)} questions...")
+
+    for idx, question in enumerate(questions, 1):
         prompt = (
             f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
             f"Your answer should be **strictly technical**, sourced **exclusively from official Skyhigh Security documentation**. "
@@ -100,10 +124,10 @@ if st.button("Submit"):
             f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
             f"Customer: {customer_name}\n"
             f"Product: {product_choice}\n"
-            f"### Question:\n{optional_question}\n\n"
+            f"### Question:\n{question}\n\n"
             f"### Direct Answer (strictly from official Skyhigh Security documentation):"
         )
-
+        
         response = openai.ChatCompletion.create(
             model=selected_model,
             messages=[{"role": "user", "content": prompt}],
@@ -112,57 +136,19 @@ if st.button("Submit"):
         )
 
         answer = clean_answer(response.choices[0].message.content.strip())
-
+        responses.append(answer)
+        
         st.markdown(f"""
             <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
-                <h4 style="color: #F5A623;">{optional_question}</h4>
+                <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
                 <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
             </div><br>
         """, unsafe_allow_html=True)
-    
-    elif customer_name and uploaded_file and column_location:
-        try:
-            # Read file
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file, engine="openpyxl")
 
-            # Convert column letters to index
-            question_index = ord(column_location.strip().upper()) - ord('A')
-            questions = df.iloc[:, question_index].dropna().tolist()
-
-            st.success(f"Extracted {len(questions)} questions. Generating responses...")
-            answers = []
-
-            for idx, question in enumerate(questions, 1):
-                prompt = (
-                    f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
-                    f"Ensure responses are strictly based on **official Skyhigh Security documentation**. "
-                    f"No disclaimers, no conclusions, just pure technical answers.\n\n"
-                    f"Customer: {customer_name}\n"
-                    f"Product: {product_choice}\n"
-                    f"### Question:\n{question}\n\n"
-                    f"### Direct Answer (strictly from official Skyhigh Security documentation):"
-                )
-                
-                response = openai.ChatCompletion.create(
-                    model=selected_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=800,
-                    temperature=0.1
-                )
-                
-                answer = clean_answer(response.choices[0].message.content.strip())
-                answers.append(answer)
-                
-                st.markdown(f"<div style='background-color: #1E1E1E; padding: 15px; border-radius: 10px;'><h4 style='color: #F5A623;'>Q{idx}: {question}</h4><pre style='color: #FFFFFF; white-space: pre-wrap;'>{answer}</pre></div><br>", unsafe_allow_html=True)
-
-            df["Answers"] = pd.Series(answers)
-            output = BytesIO()
-            df.to_excel(output, index=False, engine="openpyxl")
-            output.seek(0)
-            st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
+    if uploaded_file and len(responses) == len(questions):
+        df["Answers"] = pd.Series(responses)
+        output = BytesIO()
+        df.to_excel(output, index=False, engine="openpyxl")
+        output.seek(0)
+        st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
 
