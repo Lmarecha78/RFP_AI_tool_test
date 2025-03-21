@@ -51,21 +51,17 @@ st.title("Skyhigh Security - RFI/RFP AI Tool")
 # -------------------------
 # Restart logic
 # -------------------------
-# 1. Initialize a restart flag in session_state if it doesn't exist yet.
 if "restart_flag" not in st.session_state:
     st.session_state["restart_flag"] = False
 
-# 2. Define a callback to set the flag to True
 def set_restart_flag():
     st.session_state["restart_flag"] = True
 
-# 3. Button to trigger the callback
 st.button("🔄 Restart", on_click=set_restart_flag)
 
-# 4. If the flag is set, clear session state and rerun
 if st.session_state["restart_flag"]:
-    st.session_state.clear()
-    st.rerun()
+    st.session_state["restart_flag"] = False  # Reset the flag
+    st.experimental_rerun()
 
 # -------------------------
 # User Input Fields
@@ -161,7 +157,8 @@ if st.button("Submit"):
             "**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
             f"Customer: {customer_name}\n"
             f"Product: {product_choice}\n"
-            f"### Question:\n{question}\n\n"
+            "### Question:\n"
+            f"{question}\n\n"
             "### Direct Answer (strictly from official Skyhigh Security documentation):"
         )
 
@@ -190,4 +187,5 @@ if st.button("Submit"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
