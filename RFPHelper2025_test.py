@@ -86,19 +86,7 @@ optional_question = st.text_input("Extra/Optional: You can ask a unique question
 def clean_answer(answer):
     """Removes unwanted formatting and conclusion-like statements."""
     answer = re.sub(r'\*\*(.*?)\*\*', r'\1', answer)  # Remove markdown bold (`**`)
-
-    patterns = [
-        r'\b(Overall,|In conclusion,|Conclusion:|To summarize,|Thus,|Therefore,|Finally,|This enables|This ensures|This allows|This provides|This results in|By leveraging|By implementing).*',
-        r'.*\b(enhancing|improving|achieving|helping to ensure|complying with|ensuring).*security posture.*',
-        r'.*\b(this leads to|this results in|which results in|thereby improving|thus ensuring).*',
-        r'\b(By using|By adopting|By deploying|By integrating|By utilizing).*',
-        r'\b(This approach|This strategy|This technology).*',
-    ]
-    
-    for pattern in patterns:
-        answer = re.sub(pattern, '', answer, flags=re.IGNORECASE | re.DOTALL).strip()
-
-    return answer
+    return answer.strip()
 
 # **Submit Button Logic**
 if st.button("Submit"):
@@ -107,12 +95,13 @@ if st.button("Submit"):
 
         prompt = (
             f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
-            f"Your answer should be **strictly technical**, focusing on architecture, specifications, security features, compliance, integrations, and standards. "
-            f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**. **Only use the official Skyhigh Security documentation**.\n\n"
+            f"Your answer should be **strictly technical**, sourced **exclusively from official Skyhigh Security documentation**. "
+            f"Focus on architecture, specifications, security features, compliance, integrations, and standards. "
+            f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
             f"Customer: {customer_name}\n"
             f"Product: {product_choice}\n"
             f"### Question:\n{optional_question}\n\n"
-            f"### Direct Answer (no intro, purely technical):"
+            f"### Direct Answer (strictly from official Skyhigh Security documentation):"
         )
 
         response = openai.ChatCompletion.create(
@@ -146,11 +135,28 @@ if st.button("Submit"):
             st.success(f"Extracted {len(questions)} questions. Generating responses...")
             answers = []
 
-            for question in questions:
-                prompt = f"Product: {product_choice}\nQuestion: {question}\nAnswer:"
-                response = openai.ChatCompletion.create(model=selected_model, messages=[{"role": "user", "content": prompt}], max_tokens=800, temperature=0.1)
+            for idx, question in enumerate(questions, 1):
+                prompt = (
+                    f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
+                    f"Ensure responses are strictly based on **official Skyhigh Security documentation**. "
+                    f"No disclaimers, no conclusions, just pure technical answers.\n\n"
+                    f"Customer: {customer_name}\n"
+                    f"Product: {product_choice}\n"
+                    f"### Question:\n{question}\n\n"
+                    f"### Direct Answer (strictly from official Skyhigh Security documentation):"
+                )
+                
+                response = openai.ChatCompletion.create(
+                    model=selected_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=800,
+                    temperature=0.1
+                )
+                
                 answer = clean_answer(response.choices[0].message.content.strip())
                 answers.append(answer)
+                
+                st.markdown(f"<div style='background-color: #1E1E1E; padding: 15px; border-radius: 10px;'><h4 style='color: #F5A623;'>Q{idx}: {question}</h4><pre style='color: #FFFFFF; white-space: pre-wrap;'>{answer}</pre></div><br>", unsafe_allow_html=True)
 
             df["Answers"] = pd.Series(answers)
             output = BytesIO()
