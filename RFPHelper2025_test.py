@@ -5,14 +5,18 @@ import re
 from io import BytesIO
 import os
 
+# -------------------------
 # Streamlit page setup
+# -------------------------
 st.set_page_config(
     page_title="Skyhigh Security",
     page_icon="🔒",
     layout="wide"
 )
 
-# ✅ Ensure OpenAI API key is set correctly
+# -------------------------
+# OpenAI API Key Setup
+# -------------------------
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not openai_api_key:
@@ -20,7 +24,9 @@ if not openai_api_key:
 else:
     openai.api_key = openai_api_key  # ✅ Correct way to set API key
 
+# -------------------------
 # Set background image
+# -------------------------
 def set_background(image_url):
     css = f"""
     <style>
@@ -37,10 +43,33 @@ def set_background(image_url):
 
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
+# -------------------------
 # Branding and title
+# -------------------------
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# Input fields
+# -------------------------
+# Restart logic
+# -------------------------
+# 1. Initialize a restart flag in session_state if it doesn't exist yet.
+if "restart_flag" not in st.session_state:
+    st.session_state["restart_flag"] = False
+
+# 2. Define a callback to set the flag to True
+def set_restart_flag():
+    st.session_state["restart_flag"] = True
+
+# 3. Button to trigger the callback
+st.button("🔄 Restart", on_click=set_restart_flag)
+
+# 4. If the flag is set, clear session state and rerun
+if st.session_state["restart_flag"]:
+    st.session_state.clear()
+    st.rerun()
+
+# -------------------------
+# User Input Fields
+# -------------------------
 customer_name = st.text_input("Customer Name")
 
 product_choice = st.selectbox(
@@ -82,23 +111,28 @@ selected_model = model_mapping[model_choice]
 column_location = st.text_input("Specify the location of the questions (e.g., B for column B)")
 optional_question = st.text_input("Extra/Optional: You can ask a unique question here")
 
-# Restart Button
-def restart_app():
-    st.session_state.clear()
-    st.rerun()
-st.button("🔄 Restart", on_click=restart_app)
-
-# ✅ Function to clean answers (Removes any conclusion, benefits, markdown formatting)
+# -------------------------
+# Clean Answer Function
+# -------------------------
 def clean_answer(answer):
-    """Removes unwanted formatting and conclusion-like statements."""
+    """
+    Removes unwanted formatting and conclusion-like statements.
+    Currently, we only remove markdown bold. You can add more filters if needed.
+    """
     answer = re.sub(r'\*\*(.*?)\*\*', r'\1', answer)  # Remove markdown bold (`**`)
     return answer.strip()
 
-# **Submit Button Logic**
+# -------------------------
+# Submit Button Logic
+# -------------------------
 if st.button("Submit"):
     responses = []
+
+    # Case 1: Optional single question
     if optional_question:
         questions = [optional_question]
+
+    # Case 2: Multiple questions from uploaded file
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
@@ -111,24 +145,26 @@ if st.button("Submit"):
         except Exception as e:
             st.error(f"Error processing file: {e}")
             st.stop()
+
     else:
         st.warning("Please provide either an optional question or upload a file with questions.")
         st.stop()
 
-    st.success(f"Processing {len(questions)} questions...")
+    st.success(f"Processing {len(questions)} question(s)...")
 
+    # Generate answers for each question
     for idx, question in enumerate(questions, 1):
         prompt = (
-            f"You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
-            f"Your answer should be **strictly technical**, sourced **exclusively from official Skyhigh Security documentation**. "
-            f"Focus on architecture, specifications, security features, compliance, integrations, and standards. "
-            f"**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
+            "You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
+            "Your answer should be **strictly technical**, sourced **exclusively from official Skyhigh Security documentation**. "
+            "Focus on architecture, specifications, security features, compliance, integrations, and standards. "
+            "**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
             f"Customer: {customer_name}\n"
             f"Product: {product_choice}\n"
             f"### Question:\n{question}\n\n"
-            f"### Direct Answer (strictly from official Skyhigh Security documentation):"
+            "### Direct Answer (strictly from official Skyhigh Security documentation):"
         )
-        
+
         response = openai.ChatCompletion.create(
             model=selected_model,
             messages=[{"role": "user", "content": prompt}],
@@ -138,7 +174,8 @@ if st.button("Submit"):
 
         answer = clean_answer(response.choices[0].message.content.strip())
         responses.append(answer)
-        
+
+        # Display each question/answer in an elegant way
         st.markdown(f"""
             <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
                 <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
@@ -146,6 +183,7 @@ if st.button("Submit"):
             </div><br>
         """, unsafe_allow_html=True)
 
+    # If we processed from a file, allow download of updated file
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
