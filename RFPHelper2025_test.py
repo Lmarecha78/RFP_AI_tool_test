@@ -127,7 +127,7 @@ if not st.session_state.authenticated:
                     st.session_state.authenticated = True
                     st.session_state.current_user = email
                     st.success("Login successful!")
-                    st.experimental_rerun()  # Refresh the app to show the main content.
+                    st.rerun()  # Using st.rerun() instead of experimental_rerun()
                 else:
                     st.error("Invalid email or password.")
     
@@ -161,16 +161,6 @@ def restart_ui():
 # ------------------------------------------------------------------------------
 st.markdown("---")  # Separator
 st.header("Skyhigh Security - RFI/RFP AI Tool")
-
-# ------------------------------------------------------------------------------
-# OPENAI API KEY SETUP (already done above, so this part uses the global openai.api_key)
-# ------------------------------------------------------------------------------
-# (openai.api_key was already set in the authentication section.)
-
-# ------------------------------------------------------------------------------
-# SET BACKGROUND IMAGE (Optional: already set globally above)
-# ------------------------------------------------------------------------------
-# (We reuse the same background already set.)
 
 # ------------------------------------------------------------------------------
 # RESTART BUTTON (using dynamic ui_version)
@@ -306,6 +296,5 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
-
 
 
