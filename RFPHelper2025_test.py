@@ -15,6 +15,21 @@ st.set_page_config(
 )
 
 # -------------------------
+# Restart logic
+# -------------------------
+# 1. If restart_flag exists and is True, clear session state and rerun immediately
+if "restart_flag" in st.session_state and st.session_state.restart_flag:
+    st.session_state.clear()
+    st.rerun()
+
+# 2. Otherwise, ensure the flag exists in session state
+if "restart_flag" not in st.session_state:
+    st.session_state.restart_flag = False
+
+def set_restart_flag():
+    st.session_state.restart_flag = True
+
+# -------------------------
 # OpenAI API Key Setup
 # -------------------------
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
@@ -49,19 +64,9 @@ set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/sk
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
 # -------------------------
-# Restart logic using st.rerun()
+# Restart Button
 # -------------------------
-if "restart_flag" not in st.session_state:
-    st.session_state["restart_flag"] = False
-
-def set_restart_flag():
-    st.session_state["restart_flag"] = True
-
 st.button("🔄 Restart", on_click=set_restart_flag)
-
-if st.session_state["restart_flag"]:
-    st.session_state["restart_flag"] = False  # Reset the flag
-    st.rerun()
 
 # -------------------------
 # User Input Fields
@@ -119,6 +124,75 @@ def clean_answer(answer):
     return answer.strip()
 
 # -------------------------
+# Submit Button Logic
+# -------------------------
+if st.button("Submit"):
+    responses = []
+
+    # Case 1: Optional single question
+    if optional_question:
+        questions = [optional_question]
+
+    # Case 2: Multiple questions from uploaded file
+    elif customer_name and uploaded_file and column_location:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file, engine="openpyxl")
+            
+            question_index = ord(column_location.strip().upper()) - ord('A')
+            questions = df.iloc[:, question_index].dropna().tolist()
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+            st.stop()
+
+    else:
+        st.warning("Please provide either an optional question or upload a file with questions.")
+        st.stop()
+
+    st.success(f"Processing {len(questions)} question(s)...")
+
+    # Generate answers for each question
+    for idx, question in enumerate(questions, 1):
+        prompt = (
+            "You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
+            "Your answer should be **strictly technical**, sourced **exclusively from official Skyhigh Security documentation**. "
+            "Focus on architecture, specifications, security features, compliance, integrations, and standards. "
+            "**DO NOT** include disclaimers, introductions, or any mention of knowledge limitations. **Only provide the answer**.\n\n"
+            f"Customer: {customer_name}\n"
+            f"Product: {product_choice}\n"
+            "### Question:\n"
+            f"{question}\n\n"
+            "### Direct Answer (strictly from official Skyhigh Security documentation):"
+        )
+
+        response = openai.ChatCompletion.create(
+            model=selected_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+            temperature=0.1
+        )
+
+        answer = clean_answer(response.choices[0].message.content.strip())
+        responses.append(answer)
+
+        # Display each question/answer in an elegant way
+        st.markdown(f"""
+            <div style="background-color: #1E1E1E; padding: 15px; border-radius: 10px;">
+                <h4 style="color: #F5A623;">Q{idx}: {question}</h4>
+                <pre style="color: #FFFFFF; white-space: pre-wrap;">{answer}</pre>
+            </div><br>
+        """, unsafe_allow_html=True)
+
+    # If we processed from a file, allow download of updated file
+    if uploaded_file and len(responses) == len(questions):
+        df["Answers"] = pd.Series(responses)
+        output = BytesIO()
+        df.to_excel(output, index=False, engine="openpyxl")
+        output.seek(0)
+        st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 # Submit Button Logic
 # -------------------------
 if st.button("Submit"):
