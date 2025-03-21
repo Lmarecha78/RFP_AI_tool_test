@@ -5,27 +5,43 @@ import re
 from io import BytesIO
 import os
 
-# -------------------------
-# Streamlit page setup
-# -------------------------
+# ------------------------------------------------------------------------------
+# RESTART LOGIC
+# ------------------------------------------------------------------------------
+# 1) If restart_flag is True, clear session and rerun before building the UI
+if "restart_flag" in st.session_state and st.session_state.restart_flag:
+    st.session_state.clear()
+    st.rerun()
+
+# 2) Initialize restart_flag if not present
+if "restart_flag" not in st.session_state:
+    st.session_state.restart_flag = False
+
+def trigger_restart():
+    """Callback to set the restart_flag and force a clean slate."""
+    st.session_state.restart_flag = True
+
+# ------------------------------------------------------------------------------
+# STREAMLIT PAGE SETUP
+# ------------------------------------------------------------------------------
 st.set_page_config(
     page_title="Skyhigh Security",
     page_icon="🔒",
     layout="wide"
 )
 
-# -------------------------
-# OpenAI API Key Setup
-# -------------------------
+# ------------------------------------------------------------------------------
+# OPENAI API KEY SETUP
+# ------------------------------------------------------------------------------
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
 if not openai_api_key:
     st.error("❌ OpenAI API key is missing! Please set it in Streamlit Cloud 'Secrets'.")
 else:
     openai.api_key = openai_api_key
 
-# -------------------------
-# Set background image
-# -------------------------
+# ------------------------------------------------------------------------------
+# SET BACKGROUND IMAGE
+# ------------------------------------------------------------------------------
 def set_background(image_url):
     css = f"""
     <style>
@@ -42,33 +58,36 @@ def set_background(image_url):
 
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
-# -------------------------
-# Branding and title
-# -------------------------
+# ------------------------------------------------------------------------------
+# BRANDING AND TITLE
+# ------------------------------------------------------------------------------
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# -------------------------
-# Determine which fields to disable
-# -------------------------
-# 1) Has the user entered anything in the "unique question" field?
-unique_question_filled = bool(st.session_state.get("unique_question", "").strip())
+# ------------------------------------------------------------------------------
+# RESTART BUTTON
+# ------------------------------------------------------------------------------
+st.button("🔄 Restart", key="restart_button", on_click=trigger_restart)
 
-# 2) Has the user entered anything in the multi-question fields (customer_name, file, column_location)?
-multi_question_filled = (
-    bool(st.session_state.get("customer_name", "").strip()) or
-    bool(st.session_state.get("uploaded_file", None)) or
-    bool(st.session_state.get("column_location", "").strip())
-)
+# ------------------------------------------------------------------------------
+# DETECT WHICH FIELDS ARE FILLED (FOR DISABLING LOGIC)
+# ------------------------------------------------------------------------------
+# We look at session_state keys so we can see what's currently filled.
+unique_question_val = st.session_state.get("unique_question", "").strip()
+customer_name_val = st.session_state.get("customer_name", "").strip()
+uploaded_file_val = st.session_state.get("uploaded_file", None)
+column_location_val = st.session_state.get("column_location", "").strip()
 
-# If multi-question fields are filled, disable unique question box
-disable_unique = multi_question_filled
-
-# If unique question is filled, disable multi-question fields
+# 1) If the unique question is filled, we disable the multi-question fields.
+unique_question_filled = bool(unique_question_val)
 disable_multi = unique_question_filled
 
-# -------------------------
-# User Input Fields (with dynamic disabling)
-# -------------------------
+# 2) If any multi-question field is filled, we disable the unique question.
+multi_question_filled = bool(customer_name_val or uploaded_file_val or column_location_val)
+disable_unique = multi_question_filled
+
+# ------------------------------------------------------------------------------
+# USER INPUT FIELDS (WITH DISABLE LOGIC)
+# ------------------------------------------------------------------------------
 customer_name = st.text_input(
     "Customer Name",
     key="customer_name",
@@ -94,9 +113,9 @@ unique_question = st.text_input(
     disabled=disable_unique
 )
 
-# -------------------------
-# Model Selection
-# -------------------------
+# ------------------------------------------------------------------------------
+# MODEL SELECTION
+# ------------------------------------------------------------------------------
 st.markdown("#### **Select Model for Answer Generation**")
 model_choice = st.radio(
     "Choose a model:",
@@ -107,16 +126,15 @@ model_choice = st.radio(
     ]
 )
 
-# Model mapping
 model_mapping = {
     "GPT-4.0": "gpt-4-turbo",
     "Due Diligence (Fine-Tuned)": "ft:gpt-4o-2024-08-06:personal:skyhigh-due-diligence:BClhZf1W"
 }
 selected_model = model_mapping[model_choice]
 
-# -------------------------
-# Clean Answer Function
-# -------------------------
+# ------------------------------------------------------------------------------
+# CLEAN ANSWER FUNCTION
+# ------------------------------------------------------------------------------
 def clean_answer(answer):
     """
     Removes unwanted formatting and conclusion-like statements.
@@ -125,17 +143,17 @@ def clean_answer(answer):
     answer = re.sub(r'\*\*(.*?)\*\*', r'\1', answer)  # Remove markdown bold (`**`)
     return answer.strip()
 
-# -------------------------
-# Submit Button Logic
-# -------------------------
-if st.button("Submit"):
+# ------------------------------------------------------------------------------
+# SUBMIT BUTTON LOGIC
+# ------------------------------------------------------------------------------
+if st.button("Submit", key="submit_button"):
     responses = []
 
-    # -- CASE 1: The user typed a unique question
+    # --- CASE 1: Unique question approach
     if unique_question:
         questions = [unique_question]
 
-    # -- CASE 2: The user is using multi-question approach
+    # --- CASE 2: Multi-question approach
     elif customer_name and uploaded_file and column_location:
         try:
             if uploaded_file.name.endswith('.csv'):
@@ -148,9 +166,8 @@ if st.button("Submit"):
         except Exception as e:
             st.error(f"Error processing file: {e}")
             st.stop()
-
     else:
-        st.warning("Please provide either a single unique question OR the multi-question fields.")
+        st.warning("Please provide either a single unique question OR the multi-question fields (Customer Name, File, and Column).")
         st.stop()
 
     st.success(f"Processing {len(questions)} question(s)...")
@@ -194,3 +211,4 @@ if st.button("Submit"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
