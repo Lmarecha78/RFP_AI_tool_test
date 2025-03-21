@@ -82,6 +82,35 @@ conn = create_connection(DB_FILE)
 create_table(conn)
 
 # =============================================================================
+# SET PAGE CONFIGURATION
+# =============================================================================
+st.set_page_config(
+    page_title="Skyhigh Security",
+    page_icon="🔒",
+    layout="wide"
+)
+
+# =============================================================================
+# BACKGROUND IMAGE FUNCTION
+# =============================================================================
+def set_background(image_url):
+    css = f"""
+    <style>
+    .stApp {{
+        background-image: url("{image_url}");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+# Set the background image for the auth page.
+set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
+
+# =============================================================================
 # SESSION STATE FOR AUTHENTICATION
 # =============================================================================
 if "authenticated" not in st.session_state:
@@ -105,7 +134,6 @@ if not st.session_state.authenticated:
             password = st.text_input("Password", type="password")
             reg_submitted = st.form_submit_button("Register")
             if reg_submitted:
-                # Validate corporate email.
                 if not email.lower().endswith("@skyhighsecurity.com"):
                     st.error("Please provide a corporate email address ending with @skyhighsecurity.com.")
                 elif not (first_name and last_name and password):
@@ -127,7 +155,7 @@ if not st.session_state.authenticated:
                     st.session_state.authenticated = True
                     st.session_state.current_user = email
                     st.success("Login successful!")
-                    st.rerun()  # Using st.rerun() instead of experimental_rerun()
+                    st.rerun()  # Refresh using st.rerun() since experimental_rerun is unavailable
                 else:
                     st.error("Invalid email or password.")
     
@@ -136,6 +164,10 @@ if not st.session_state.authenticated:
 # =============================================================================
 # MAIN APP PAGE (AFTER AUTHENTICATION)
 # =============================================================================
+
+# Re-apply the background image for the main app.
+set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
+
 user = get_user(conn, st.session_state.current_user)
 st.title("Welcome to the Skyhigh Security App")
 if user:
@@ -157,9 +189,9 @@ def restart_ui():
     st.session_state.ui_version += 1
 
 # ------------------------------------------------------------------------------
-# STREAMLIT PAGE SETUP (for the RFI/RFP tool)
+# RFI/RFP TOOL HEADER
 # ------------------------------------------------------------------------------
-st.markdown("---")  # Separator
+st.markdown("---")
 st.header("Skyhigh Security - RFI/RFP AI Tool")
 
 # ------------------------------------------------------------------------------
