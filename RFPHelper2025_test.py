@@ -254,7 +254,6 @@ if not st.session_state.authenticated:
             with st.form("validation_form"):
                 validation_code = st.text_input("Validation Code")
                 col1, col2 = st.columns(2)
-
                 with col1:
                     validate_submitted = st.form_submit_button("Validate Email")
                 with col2:
