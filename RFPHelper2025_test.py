@@ -4,18 +4,14 @@ import openai
 import re
 from io import BytesIO
 
-# ------------------------------------------------------------------------------
-# MUST BE FIRST: SET PAGE CONFIG
-# ------------------------------------------------------------------------------
+# 1) MUST BE FIRST: Set page config
 st.set_page_config(
     page_title="Skyhigh Security - RFI/RFP AI Tool",
     page_icon="🔒",
     layout="wide"
 )
 
-# ------------------------------------------------------------------------------
-# OPTIONAL: SET BACKGROUND
-# ------------------------------------------------------------------------------
+# 2) Background
 def set_background(image_url):
     css = f"""
     <style>
@@ -30,12 +26,9 @@ def set_background(image_url):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# If you want a custom background, call set_background right after set_page_config
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
-# ------------------------------------------------------------------------------
-# SIMPLE PASSWORD CHECK
-# ------------------------------------------------------------------------------
+# 3) Simple password check
 if "password_authenticated" not in st.session_state:
     st.session_state.password_authenticated = False
 
@@ -44,7 +37,7 @@ if not st.session_state.password_authenticated:
 
     pwd = st.text_input("Password", type="password")
     if st.button("Submit Password"):
-        if pwd == st.secrets["app_password"]:  # stored in Streamlit secrets
+        if pwd == st.secrets["app_password"]:
             st.session_state.password_authenticated = True
             st.success("Password correct!")
         else:
@@ -54,12 +47,10 @@ if not st.session_state.password_authenticated:
     if not st.session_state.password_authenticated:
         st.stop()
 
-# ------------------------------------------------------------------------------
-# MAIN APP CONTENT
-# ------------------------------------------------------------------------------
+# 4) MAIN APP (only runs if authenticated)
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# DYNAMIC UI SETUP
+# Dynamic UI version
 if "ui_version" not in st.session_state:
     st.session_state.ui_version = 0
 
@@ -68,11 +59,13 @@ def restart_ui():
 
 st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", on_click=restart_ui)
 
+# Retrieve current values from session state
 customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
 uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
 unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
+# Disable logic
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
 disable_multi = bool(unique_question_val)
 
@@ -101,7 +94,6 @@ unique_question = st.text_input(
     disabled=disable_unique
 )
 
-# MODEL SELECTION
 st.markdown("#### **Select Model for Answer Generation**")
 model_choice = st.radio(
     "Choose a model:",
@@ -121,10 +113,10 @@ selected_model = model_mapping[model_choice]
 def clean_answer(answer):
     return re.sub(r'\*\*(.*?)\*\*', r'\1', answer).strip()
 
-# SUBMIT BUTTON LOGIC
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
+    # Distinguish single vs. multi
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -139,7 +131,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             st.error(f"Error processing file: {e}")
             st.stop()
     else:
-        st.warning("Please provide either a unique question OR all multi-question fields (Customer Name, File, Column).")
+        st.warning("Please provide either a unique question OR the multi-question fields (Name, File, Column).")
         st.stop()
 
     st.success(f"Processing {len(questions)} question(s)...")
@@ -174,7 +166,6 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             </div><br>
         """, unsafe_allow_html=True)
 
-    # If a file was uploaded, offer a download
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
