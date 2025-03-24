@@ -5,7 +5,7 @@ import re
 from io import BytesIO
 
 ###############################################################################
-# 1) PAGE CONFIG FIRST (no other st.* calls above this)
+# 1) PAGE CONFIG MUST BE FIRST
 ###############################################################################
 st.set_page_config(
     page_title="Skyhigh Security - RFI/RFP AI Tool",
@@ -33,33 +33,34 @@ def set_background(image_url):
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
 ###############################################################################
-# 3) SIMPLE PASSWORD CHECK
+# 3) PASSWORD AUTHENTICATION
 ###############################################################################
 if "password_authenticated" not in st.session_state:
     st.session_state.password_authenticated = False
 
-def show_password_prompt():
+if not st.session_state.password_authenticated:
     st.title("Enter Password to Access the App")
+
     pwd = st.text_input("Password", type="password")
     if st.button("Submit Password"):
-        # Compare typed password to what's in Streamlit secrets
+        # Compare typed password to the one in Streamlit secrets
         if pwd == st.secrets["app_password"]:
-            # Mark as authenticated
             st.session_state.password_authenticated = True
+            st.success("Password correct! Loading main page...")
         else:
             st.error("Incorrect password. Please try again.")
 
-# If not authenticated, show only the password prompt and stop.
-if not st.session_state.password_authenticated:
-    show_password_prompt()
-    st.stop()
+    # After the button press, Streamlit re-runs the script:
+    # If password_authenticated is still False, we stop here
+    if not st.session_state.password_authenticated:
+        st.stop()
 
 ###############################################################################
 # 4) MAIN APP (only runs if authenticated)
 ###############################################################################
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# Example dynamic UI approach
+# Simple dynamic UI version approach
 if "ui_version" not in st.session_state:
     st.session_state.ui_version = 0
 
@@ -74,7 +75,6 @@ uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_ve
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
 unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
-# Disable logic
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
 disable_multi = bool(unique_question_val)
 
@@ -125,7 +125,6 @@ def clean_answer(answer_text):
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
-    # Single unique question vs multi
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -140,7 +139,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             st.error(f"Error processing file: {e}")
             st.stop()
     else:
-        st.warning("Please provide either a unique question OR all multi-question fields (Name, File, Column).")
+        st.warning("Please provide either a unique question OR all multi-question fields (Customer Name, File, Column).")
         st.stop()
 
     st.success(f"Processing {len(questions)} question(s)...")
@@ -181,4 +180,5 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
