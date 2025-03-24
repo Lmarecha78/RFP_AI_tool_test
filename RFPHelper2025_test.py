@@ -215,7 +215,6 @@ if not st.session_state.authenticated:
             else:
                 success = add_user(conn, email, first_name, last_name, password)
                 if success:
-                    # Generate validation code, store it, and send the email.
                     code = generate_validation_code()
                     st.session_state.pending_validation[email] = code
                     send_validation_email(email, code)
@@ -226,13 +225,11 @@ if not st.session_state.authenticated:
 
     else:  # auth_mode == "Login"
         st.subheader("Login")
-        # 1) The login form
         with st.form("login_form"):
             login_email = st.text_input("Email")
             login_password = st.text_input("Password", type="password")
             login_submitted = st.form_submit_button("Login")
 
-        # 2) Process the login form result
         if login_submitted:
             if authenticate_user(conn, login_email, login_password):
                 user = get_user(conn, login_email)
@@ -248,7 +245,7 @@ if not st.session_state.authenticated:
             else:
                 st.error("Invalid email or password.")
 
-        # 3) If we have an unverified email, show a separate validation form
+        # Show the validation form if the user is not verified
         if st.session_state.email_to_validate:
             with st.form("validation_form"):
                 validation_code = st.text_input("Validation Code")
@@ -259,28 +256,26 @@ if not st.session_state.authenticated:
                     resend_submitted = st.form_submit_button("Resend Code")
 
             if validate_submitted:
-                # Check the typed code vs. the expected code
                 expected_code = st.session_state.pending_validation.get(st.session_state.email_to_validate)
                 if validation_code == expected_code:
                     update_verified(conn, st.session_state.email_to_validate)
                     st.session_state.authenticated = True
                     st.session_state.current_user = st.session_state.email_to_validate
                     st.success("Email validated and login successful!")
-                    # Remove the code from pending_validation
                     st.session_state.pending_validation.pop(st.session_state.email_to_validate, None)
                     st.session_state.email_to_validate = None
                 else:
                     st.error("Invalid validation code. Please try again.")
 
             if resend_submitted:
-                # Generate and send a new code
                 new_code = generate_validation_code()
                 st.session_state.pending_validation[st.session_state.email_to_validate] = new_code
                 send_validation_email(st.session_state.email_to_validate, new_code)
                 st.info("A new validation code has been sent to your email address.")
 
-    # We stop here to prevent showing the main app if not authenticated.
-    st.stop()
+    # Stop here if not authenticated yet (i.e., user is still on auth page)
+    if not st.session_state.authenticated:
+        st.stop()
 
 # =============================================================================
 # MAIN APP PAGE (AFTER AUTHENTICATION)
@@ -293,6 +288,7 @@ if st.button("Log off", key="logoff_button"):
     st.session_state.current_user = None
     st.session_state.email_to_validate = None
     st.success("You have been logged off.")
+    # Stop so we don't show the main app after logging off
     st.stop()
 
 user = get_user(conn, st.session_state.current_user)
@@ -318,7 +314,6 @@ if st.session_state.current_user == "laurent.marechal@skyhighsecurity.com":
         users = []
 
     if users:
-        # Display users in a table-like layout
         for user_data in users:
             email, first_name, last_name, verified = user_data
             cols = st.columns([2, 2, 2, 1, 1])
@@ -327,7 +322,7 @@ if st.session_state.current_user == "laurent.marechal@skyhighsecurity.com":
             cols[2].write(last_name)
             cols[3].write("Yes" if verified == 1 else "No")
             
-            # Optionally prevent the admin from deleting their own account.
+            # Optionally prevent the admin from deleting themselves
             if email == st.session_state.current_user:
                 cols[4].write("N/A")
             else:
@@ -343,40 +338,29 @@ if st.session_state.current_user == "laurent.marechal@skyhighsecurity.com":
 # THE RFI/RFP TOOL CODE (WITH DYNAMIC UI AND DISABLE LOGIC)
 # =============================================================================
 
-# ------------------------------------------------------------------------------
-# INITIALIZE/DYNAMIC UI VERSION FOR WIDGET KEYS
-# ------------------------------------------------------------------------------
 if "ui_version" not in st.session_state:
     st.session_state.ui_version = 0
 
 def restart_ui():
     st.session_state.ui_version += 1
 
-# ------------------------------------------------------------------------------
-# RFI/RFP TOOL HEADER
-# ------------------------------------------------------------------------------
 st.markdown("---")
 st.header("Skyhigh Security - RFI/RFP AI Tool")
 
-# ------------------------------------------------------------------------------
-# RESTART BUTTON (using dynamic ui_version)
-# ------------------------------------------------------------------------------
+# Restart button
 st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", on_click=restart_ui)
 
-# ------------------------------------------------------------------------------
-# READ CURRENT VALUES FROM SESSION STATE (for disable logic)
-# ------------------------------------------------------------------------------
+# Retrieve current user inputs from session state
 customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
 uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
 unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
+# Decide which fields to disable
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
 disable_multi = bool(unique_question_val)
 
-# ------------------------------------------------------------------------------
-# USER INPUT FIELDS (with dynamic keys)
-# ------------------------------------------------------------------------------
+# Input fields
 customer_name = st.text_input(
     "Customer Name",
     key=f"customer_name_{st.session_state.ui_version}",
@@ -402,9 +386,7 @@ unique_question = st.text_input(
     disabled=disable_unique
 )
 
-# ------------------------------------------------------------------------------
-# MODEL SELECTION
-# ------------------------------------------------------------------------------
+# Model selection
 st.markdown("#### **Select Model for Answer Generation**")
 model_choice = st.radio(
     "Choose a model:",
@@ -421,20 +403,14 @@ model_mapping = {
 }
 selected_model = model_mapping[model_choice]
 
-# ------------------------------------------------------------------------------
-# CLEAN ANSWER FUNCTION
-# ------------------------------------------------------------------------------
 def clean_answer(answer):
     """Remove markdown bold formatting."""
     return re.sub(r'\*\*(.*?)\*\*', r'\1', answer).strip()
 
-# ------------------------------------------------------------------------------
-# SUBMIT BUTTON LOGIC
-# ------------------------------------------------------------------------------
+# Submit logic
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
-    # Distinguish single unique question from multi-question approach
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -484,7 +460,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             </div><br>
         """, unsafe_allow_html=True)
 
-    # If multiple questions, let user download an Excel
+    # If multiple questions from a file, allow download
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
