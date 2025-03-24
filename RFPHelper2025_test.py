@@ -219,7 +219,8 @@ if not st.session_state.authenticated:
                     code = generate_validation_code()
                     st.session_state.pending_validation[email] = code
                     send_validation_email(email, code)
-                    st.success("Registration successful! Please proceed to login and validate your email before accessing the app.")
+                    st.success("Registration successful!")
+                    st.info("Please login and validate your email before accessing the app.")
                 else:
                     st.error("This email is already registered. Please login.")
 
@@ -239,8 +240,7 @@ if not st.session_state.authenticated:
                     # user[4] is 'verified' column = 1 means verified
                     st.session_state.authenticated = True
                     st.session_state.current_user = login_email
-                    st.success("Login successful! Please refresh the page to see changes.")
-                    st.stop()
+                    st.success("Login successful!")
                 else:
                     # user not verified, show separate form for validation
                     st.error("Your email is not validated. Please enter your validation code below.")
@@ -265,11 +265,10 @@ if not st.session_state.authenticated:
                     update_verified(conn, st.session_state.email_to_validate)
                     st.session_state.authenticated = True
                     st.session_state.current_user = st.session_state.email_to_validate
-                    st.success("Email validated and login successful! Please refresh the page to see changes.")
+                    st.success("Email validated and login successful!")
                     # Remove the code from pending_validation
                     st.session_state.pending_validation.pop(st.session_state.email_to_validate, None)
                     st.session_state.email_to_validate = None
-                    st.stop()
                 else:
                     st.error("Invalid validation code. Please try again.")
 
@@ -280,6 +279,7 @@ if not st.session_state.authenticated:
                 send_validation_email(st.session_state.email_to_validate, new_code)
                 st.info("A new validation code has been sent to your email address.")
 
+    # We stop here to prevent showing the main app if not authenticated.
     st.stop()
 
 # =============================================================================
@@ -292,7 +292,7 @@ if st.button("Log off", key="logoff_button"):
     st.session_state.authenticated = False
     st.session_state.current_user = None
     st.session_state.email_to_validate = None
-    st.success("Logged off. Please refresh the page to see changes.")
+    st.success("You have been logged off.")
     st.stop()
 
 user = get_user(conn, st.session_state.current_user)
@@ -333,8 +333,7 @@ if st.session_state.current_user == "laurent.marechal@skyhighsecurity.com":
             else:
                 if cols[4].button("Delete", key=email):
                     if delete_user(conn, email):
-                        st.success(f"User {email} deleted successfully! Please refresh the page to see changes.")
-                        st.stop()
+                        st.success(f"User {email} deleted successfully!")
                     else:
                         st.error(f"Failed to delete user {email}.")
     else:
@@ -435,6 +434,7 @@ def clean_answer(answer):
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
+    # Distinguish single unique question from multi-question approach
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -484,6 +484,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             </div><br>
         """, unsafe_allow_html=True)
 
+    # If multiple questions, let user download an Excel
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
         output = BytesIO()
