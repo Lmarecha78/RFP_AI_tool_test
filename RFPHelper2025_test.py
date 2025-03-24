@@ -1,17 +1,24 @@
+#############################
+# 1) IMPORTS (no st calls yet)
+#############################
 import streamlit as st
 import pandas as pd
 import openai
 import re
 from io import BytesIO
 
-# 1) MUST BE FIRST: Set page config
+#############################
+# 2) PAGE CONFIG FIRST THING
+#############################
 st.set_page_config(
     page_title="Skyhigh Security - RFI/RFP AI Tool",
     page_icon="🔒",
     layout="wide"
 )
 
-# 2) Background
+#############################
+# 3) OPTIONAL BACKGROUND
+#############################
 def set_background(image_url):
     css = f"""
     <style>
@@ -26,31 +33,38 @@ def set_background(image_url):
     """
     st.markdown(css, unsafe_allow_html=True)
 
+# Call immediately after set_page_config
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
-# 3) Simple password check
+#############################
+# 4) SIMPLE PASSWORD CHECK
+#############################
 if "password_authenticated" not in st.session_state:
     st.session_state.password_authenticated = False
 
 if not st.session_state.password_authenticated:
     st.title("Enter Password to Access the App")
 
+    # No other st.* calls before set_page_config
     pwd = st.text_input("Password", type="password")
     if st.button("Submit Password"):
+        # Access secrets AFTER set_page_config
         if pwd == st.secrets["app_password"]:
             st.session_state.password_authenticated = True
             st.success("Password correct!")
         else:
             st.error("Incorrect password. Please try again.")
 
-    # If still not authenticated, stop the script
+    # Stop here if not authenticated
     if not st.session_state.password_authenticated:
         st.stop()
 
-# 4) MAIN APP (only runs if authenticated)
+#############################
+# 5) MAIN APP CONTENT
+#############################
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# Dynamic UI version
+# Basic dynamic UI approach
 if "ui_version" not in st.session_state:
     st.session_state.ui_version = 0
 
@@ -59,7 +73,7 @@ def restart_ui():
 
 st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", on_click=restart_ui)
 
-# Retrieve current values from session state
+# Retrieve session values
 customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
 uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
@@ -110,13 +124,12 @@ model_mapping = {
 }
 selected_model = model_mapping[model_choice]
 
-def clean_answer(answer):
-    return re.sub(r'\*\*(.*?)\*\*', r'\1', answer).strip()
+def clean_answer(answer_text):
+    return re.sub(r'\*\*(.*?)\*\*', r'\1', answer_text).strip()
 
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
-    # Distinguish single vs. multi
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -131,7 +144,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             st.error(f"Error processing file: {e}")
             st.stop()
     else:
-        st.warning("Please provide either a unique question OR the multi-question fields (Name, File, Column).")
+        st.warning("Please provide either a unique question OR all multi-question fields (Customer Name, File, Column).")
         st.stop()
 
     st.success(f"Processing {len(questions)} question(s)...")
