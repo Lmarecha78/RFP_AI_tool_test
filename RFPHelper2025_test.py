@@ -91,7 +91,7 @@ def get_user(conn, email):
         return None
 
 def delete_user(conn, email):
-    """Delete a user from the users table by email (for testing)."""
+    """Delete a user from the users table by email (for testing/admin)."""
     try:
         cur = conn.cursor()
         cur.execute("DELETE FROM users WHERE email=?", (email,))
@@ -241,7 +241,7 @@ if not st.session_state.authenticated:
                     st.session_state.authenticated = True
                     st.session_state.current_user = login_email
                     st.success("Login successful!")
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     # user not verified, show separate form for validation
                     st.error("Your email is not validated. Please enter your validation code below.")
@@ -271,7 +271,7 @@ if not st.session_state.authenticated:
                     # Remove the code from pending_validation
                     st.session_state.pending_validation.pop(st.session_state.email_to_validate, None)
                     st.session_state.email_to_validate = None
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Invalid validation code. Please try again.")
 
@@ -294,7 +294,7 @@ if st.button("Log off", key="logoff_button"):
     st.session_state.authenticated = False
     st.session_state.current_user = None
     st.session_state.email_to_validate = None
-    st.rerun()
+    st.experimental_rerun()
 
 user = get_user(conn, st.session_state.current_user)
 st.title("Welcome to the Skyhigh Security App")
@@ -302,6 +302,44 @@ if user:
     st.write(f"Hello, {user[1]} {user[2]}!")
 else:
     st.write("User data not found.")
+
+# =============================================================================
+# ADMIN PANEL FOR laurent.marechal@skyhighsecurity.com
+# =============================================================================
+if st.session_state.current_user == "laurent.marechal@skyhighsecurity.com":
+    st.markdown("---")
+    st.subheader("Admin Panel: Manage Registered Users")
+    
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT email, first_name, last_name, verified FROM users")
+        users = cur.fetchall()
+    except Exception as e:
+        st.error(f"Error fetching users: {e}")
+        users = []
+
+    if users:
+        # Display users in a table-like layout
+        for user_data in users:
+            email, first_name, last_name, verified = user_data
+            cols = st.columns([2, 2, 2, 1, 1])
+            cols[0].write(email)
+            cols[1].write(first_name)
+            cols[2].write(last_name)
+            cols[3].write("Yes" if verified == 1 else "No")
+            
+            # Optionally prevent the admin from deleting their own account.
+            if email == st.session_state.current_user:
+                cols[4].write("N/A")
+            else:
+                if cols[4].button("Delete", key=email):
+                    if delete_user(conn, email):
+                        st.success(f"User {email} deleted successfully!")
+                        st.experimental_rerun()
+                    else:
+                        st.error(f"Failed to delete user {email}.")
+    else:
+        st.write("No registered users found.")
 
 # =============================================================================
 # THE RFI/RFP TOOL CODE (WITH DYNAMIC UI AND DISABLE LOGIC)
@@ -348,7 +386,7 @@ customer_name = st.text_input(
 )
 
 uploaded_file = st.file_uploader(
-    "Upload a CSV or XLS file",
+    "Upload a CSV or XLS file - Please note that only XLS files containing a single worksheet are supported.",
     type=["csv", "xls", "xlsx"],
     key=f"uploaded_file_{st.session_state.ui_version}",
     disabled=disable_multi
