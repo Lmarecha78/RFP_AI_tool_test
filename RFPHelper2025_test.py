@@ -1,24 +1,21 @@
-#############################
-# 1) IMPORTS (no st calls yet)
-#############################
 import streamlit as st
 import pandas as pd
 import openai
 import re
 from io import BytesIO
 
-#############################
-# 2) PAGE CONFIG FIRST THING
-#############################
+###############################################################################
+# 1) PAGE CONFIG FIRST (no other st.* calls above this)
+###############################################################################
 st.set_page_config(
     page_title="Skyhigh Security - RFI/RFP AI Tool",
     page_icon="🔒",
     layout="wide"
 )
 
-#############################
-# 3) OPTIONAL BACKGROUND
-#############################
+###############################################################################
+# 2) OPTIONAL BACKGROUND
+###############################################################################
 def set_background(image_url):
     css = f"""
     <style>
@@ -33,38 +30,36 @@ def set_background(image_url):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# Call immediately after set_page_config
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
-#############################
-# 4) SIMPLE PASSWORD CHECK
-#############################
+###############################################################################
+# 3) SIMPLE PASSWORD CHECK
+###############################################################################
 if "password_authenticated" not in st.session_state:
     st.session_state.password_authenticated = False
 
-if not st.session_state.password_authenticated:
+def show_password_prompt():
     st.title("Enter Password to Access the App")
-
-    # No other st.* calls before set_page_config
     pwd = st.text_input("Password", type="password")
     if st.button("Submit Password"):
-        # Access secrets AFTER set_page_config
+        # Compare typed password to what's in Streamlit secrets
         if pwd == st.secrets["app_password"]:
+            # Mark as authenticated
             st.session_state.password_authenticated = True
-            st.success("Password correct!")
         else:
             st.error("Incorrect password. Please try again.")
 
-    # Stop here if not authenticated
-    if not st.session_state.password_authenticated:
-        st.stop()
+# If not authenticated, show only the password prompt and stop.
+if not st.session_state.password_authenticated:
+    show_password_prompt()
+    st.stop()
 
-#############################
-# 5) MAIN APP CONTENT
-#############################
+###############################################################################
+# 4) MAIN APP (only runs if authenticated)
+###############################################################################
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
-# Basic dynamic UI approach
+# Example dynamic UI approach
 if "ui_version" not in st.session_state:
     st.session_state.ui_version = 0
 
@@ -73,7 +68,7 @@ def restart_ui():
 
 st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", on_click=restart_ui)
 
-# Retrieve session values
+# Retrieve current values from session state
 customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
 uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
@@ -130,6 +125,7 @@ def clean_answer(answer_text):
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
 
+    # Single unique question vs multi
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -144,7 +140,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             st.error(f"Error processing file: {e}")
             st.stop()
     else:
-        st.warning("Please provide either a unique question OR all multi-question fields (Customer Name, File, Column).")
+        st.warning("Please provide either a unique question OR all multi-question fields (Name, File, Column).")
         st.stop()
 
     st.success(f"Processing {len(questions)} question(s)...")
