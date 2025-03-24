@@ -219,8 +219,7 @@ if not st.session_state.authenticated:
                     code = generate_validation_code()
                     st.session_state.pending_validation[email] = code
                     send_validation_email(email, code)
-                    st.success("Registration successful!")
-                    st.info("Please proceed to login and validate your email before accessing the app.")
+                    st.success("Registration successful! Please proceed to login and validate your email before accessing the app.")
                 else:
                     st.error("This email is already registered. Please login.")
 
@@ -240,8 +239,8 @@ if not st.session_state.authenticated:
                     # user[4] is 'verified' column = 1 means verified
                     st.session_state.authenticated = True
                     st.session_state.current_user = login_email
-                    st.success("Login successful!")
-                    st.experimental_rerun()
+                    st.success("Login successful! Please refresh the page to see changes.")
+                    st.stop()
                 else:
                     # user not verified, show separate form for validation
                     st.error("Your email is not validated. Please enter your validation code below.")
@@ -266,11 +265,11 @@ if not st.session_state.authenticated:
                     update_verified(conn, st.session_state.email_to_validate)
                     st.session_state.authenticated = True
                     st.session_state.current_user = st.session_state.email_to_validate
-                    st.success("Email validated and login successful!")
+                    st.success("Email validated and login successful! Please refresh the page to see changes.")
                     # Remove the code from pending_validation
                     st.session_state.pending_validation.pop(st.session_state.email_to_validate, None)
                     st.session_state.email_to_validate = None
-                    st.experimental_rerun()
+                    st.stop()
                 else:
                     st.error("Invalid validation code. Please try again.")
 
@@ -293,7 +292,8 @@ if st.button("Log off", key="logoff_button"):
     st.session_state.authenticated = False
     st.session_state.current_user = None
     st.session_state.email_to_validate = None
-    st.experimental_rerun()
+    st.success("Logged off. Please refresh the page to see changes.")
+    st.stop()
 
 user = get_user(conn, st.session_state.current_user)
 st.title("Welcome to the Skyhigh Security App")
@@ -333,8 +333,8 @@ if st.session_state.current_user == "laurent.marechal@skyhighsecurity.com":
             else:
                 if cols[4].button("Delete", key=email):
                     if delete_user(conn, email):
-                        st.success(f"User {email} deleted successfully!")
-                        st.experimental_rerun()
+                        st.success(f"User {email} deleted successfully! Please refresh the page to see changes.")
+                        st.stop()
                     else:
                         st.error(f"Failed to delete user {email}.")
     else:
