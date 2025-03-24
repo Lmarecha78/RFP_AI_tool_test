@@ -3,28 +3,32 @@ import pandas as pd
 import openai
 import re
 from io import BytesIO
-import random
-import string
 
 # ------------------------------------------------------------------------------
-# PASSWORD CHECK
+# 1) SIMPLE PASSWORD CHECK WITHOUT st.experimental_rerun
 # ------------------------------------------------------------------------------
 if "password_authenticated" not in st.session_state:
     st.session_state.password_authenticated = False
 
+# If not authenticated, show password prompt
 if not st.session_state.password_authenticated:
     st.title("Enter Password to Access the App")
+
     pwd = st.text_input("Password", type="password")
     if st.button("Submit Password"):
         if pwd == st.secrets["app_password"]:
+            # Mark authenticated in session_state
             st.session_state.password_authenticated = True
-            st.experimental_rerun()  # re-run the app to show main content
+            st.success("Password correct! Loading app...")
         else:
             st.error("Incorrect password. Please try again.")
-    st.stop()
+    
+    # If still not authenticated after the button press, stop here
+    if not st.session_state.password_authenticated:
+        st.stop()
 
 # ------------------------------------------------------------------------------
-# PAGE CONFIGURATION & BACKGROUND
+# 2) PAGE CONFIGURATION & BACKGROUND
 # ------------------------------------------------------------------------------
 st.set_page_config(
     page_title="Skyhigh Security - RFI/RFP AI Tool",
@@ -51,7 +55,7 @@ set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/sk
 st.title("Skyhigh Security - RFI/RFP AI Tool")
 
 # ------------------------------------------------------------------------------
-# DYNAMIC UI SETUP
+# 3) DYNAMIC UI SETUP
 # ------------------------------------------------------------------------------
 if "ui_version" not in st.session_state:
     st.session_state.ui_version = 0
@@ -95,7 +99,7 @@ unique_question = st.text_input(
 )
 
 # ------------------------------------------------------------------------------
-# MODEL SELECTION
+# 4) MODEL SELECTION
 # ------------------------------------------------------------------------------
 st.markdown("#### **Select Model for Answer Generation**")
 model_choice = st.radio(
@@ -106,6 +110,7 @@ model_choice = st.radio(
         "Optimized for Due Diligence and security-related questionnaires."
     ]
 )
+
 model_mapping = {
     "GPT-4.0": "gpt-4-turbo",
     "Due Diligence (Fine-Tuned)": "ft:gpt-4o-2024-08-06:personal:skyhigh-due-diligence:BClhZf1W"
@@ -114,13 +119,16 @@ selected_model = model_mapping[model_choice]
 
 def clean_answer(answer):
     """Remove markdown bold formatting."""
+    import re
     return re.sub(r'\*\*(.*?)\*\*', r'\1', answer).strip()
 
 # ------------------------------------------------------------------------------
-# SUBMIT BUTTON LOGIC
+# 5) SUBMIT BUTTON LOGIC
 # ------------------------------------------------------------------------------
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
+
+    # Single unique question vs. multi-question
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -140,6 +148,7 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
 
     st.success(f"Processing {len(questions)} question(s)...")
 
+    import openai
     for idx, question in enumerate(questions, 1):
         prompt = (
             "You are an expert in Skyhigh Security products, providing highly detailed technical responses for an RFP. "
@@ -169,11 +178,12 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
             </div><br>
         """, unsafe_allow_html=True)
 
+    # Download the answers if we used a file
     if uploaded_file and len(responses) == len(questions):
         df["Answers"] = pd.Series(responses)
+        from io import BytesIO
         output = BytesIO()
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
-
 
