@@ -7,6 +7,23 @@ import random
 import string
 
 # ------------------------------------------------------------------------------
+# PASSWORD CHECK
+# ------------------------------------------------------------------------------
+if "password_authenticated" not in st.session_state:
+    st.session_state.password_authenticated = False
+
+if not st.session_state.password_authenticated:
+    st.title("Enter Password to Access the App")
+    pwd = st.text_input("Password", type="password")
+    if st.button("Submit Password"):
+        if pwd == st.secrets["app_password"]:
+            st.session_state.password_authenticated = True
+            st.experimental_rerun()  # re-run the app to show main content
+        else:
+            st.error("Incorrect password. Please try again.")
+    st.stop()
+
+# ------------------------------------------------------------------------------
 # PAGE CONFIGURATION & BACKGROUND
 # ------------------------------------------------------------------------------
 st.set_page_config(
@@ -29,7 +46,6 @@ def set_background(image_url):
     """
     st.markdown(css, unsafe_allow_html=True)
 
-# Set a background image (adjust URL as needed)
 set_background("https://raw.githubusercontent.com/lmarecha78/RFP_AI_tool/main/skyhigh_bg.png")
 
 st.title("Skyhigh Security - RFI/RFP AI Tool")
@@ -45,13 +61,11 @@ def restart_ui():
 
 st.button("🔄 Restart", key=f"restart_button_{st.session_state.ui_version}", on_click=restart_ui)
 
-# Retrieve current values from session state
 customer_name_val = st.session_state.get(f"customer_name_{st.session_state.ui_version}", "").strip()
 uploaded_file_val = st.session_state.get(f"uploaded_file_{st.session_state.ui_version}", None)
 column_location_val = st.session_state.get(f"column_location_{st.session_state.ui_version}", "").strip()
 unique_question_val = st.session_state.get(f"unique_question_{st.session_state.ui_version}", "").strip()
 
-# Disable one set of fields if the other is filled
 disable_unique = bool(customer_name_val or uploaded_file_val or column_location_val)
 disable_multi = bool(unique_question_val)
 
@@ -107,7 +121,6 @@ def clean_answer(answer):
 # ------------------------------------------------------------------------------
 if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
     responses = []
-    # Use unique question if provided; otherwise, use multi-question fields
     if unique_question:
         questions = [unique_question]
     elif customer_name and uploaded_file and column_location:
@@ -162,4 +175,5 @@ if st.button("Submit", key=f"submit_button_{st.session_state.ui_version}"):
         df.to_excel(output, index=False, engine="openpyxl")
         output.seek(0)
         st.download_button("📥 Download Responses", data=output, file_name="RFP_Responses.xlsx")
+
 
